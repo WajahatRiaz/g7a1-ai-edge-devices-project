@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # Initialize the llama.cpp and gorilla submodules, install Python dependencies,
 # and build the llama.cpp tools used by the baseline (server, quantize, imatrix).
+#
+# Optional: DOWNLOAD_MODEL=1 ./setup.sh
+#   also downloads Qwen3-1.7B and converts models/qwen3-1.7b-bf16.gguf
+#   (multi-GB; uses curl resume for the large safetensors shard).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
+DOWNLOAD_MODEL="${DOWNLOAD_MODEL:-0}"
 
 if [[ ! -f third_party/llama.cpp/CMakeLists.txt || ! -f third_party/gorilla/berkeley-function-call-leaderboard/pyproject.toml ]]; then
   git submodule update --init --depth 1
@@ -73,3 +78,14 @@ cmake --build build/llama.cpp -j "$(nproc)" \
 echo "llama-server: ${ROOT}/build/llama.cpp/bin/llama-server"
 echo "Python env:  ${ROOT}/.venv"
 echo "GGUF convert env: ${ROOT}/.venv-convert"
+
+if [[ "${DOWNLOAD_MODEL}" == "1" ]]; then
+  echo "==> DOWNLOAD_MODEL=1: fetching and converting the BF16 baseline"
+  "${ROOT}/scripts/download_and_convert_baseline.sh"
+else
+  echo "Model weights were not downloaded."
+  echo "When ready (multi-GB, resume-safe):"
+  echo "  ./scripts/download_and_convert_baseline.sh"
+  echo "Or rerun setup with weights included:"
+  echo "  DOWNLOAD_MODEL=1 ./setup.sh"
+fi

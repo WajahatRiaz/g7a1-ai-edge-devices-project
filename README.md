@@ -29,8 +29,8 @@ Legend: `[x]` done on this Linux host · `[ ]` still open · `[P]` must be redon
 - [x] Submodules: `third_party/llama.cpp`, `third_party/gorilla`
 - [x] Native `llama-server` / `llama-cli` / `llama-quantize` / `llama-imatrix` build (x86 host)
 - [ ] `[P]` Rebuild llama.cpp on the Pi (`./setup.sh` there)
-- [ ] Download `Qwen/Qwen3-1.7B` HF weights (`models/hf/Qwen3-1.7B/`; large shard often slow from HF CDN)
-- [ ] Convert to `models/qwen3-1.7b-bf16.gguf` after the download completes
+- [ ] Download `Qwen/Qwen3-1.7B` HF weights (`./scripts/download_and_convert_baseline.sh` or `DOWNLOAD_MODEL=1 ./setup.sh`; large shard via `curl -C -`)
+- [ ] Convert to `models/qwen3-1.7b-bf16.gguf` (same script does this after the download)
 
 **Task 1 — tool subset and long session**
 
@@ -126,12 +126,24 @@ Install Python dependencies and build llama.cpp:
 source .venv/bin/activate
 ```
 
-`setup.sh` does four things:
+`setup.sh` does four things by default:
 
 1. Initializes `third_party/llama.cpp` and `third_party/gorilla` if those checkouts are missing.
 2. Creates `.venv`, installs the lean harness deps, and puts the BFCL submodule on `PYTHONPATH` (no torch / sentence-transformers).
 3. Creates `.venv-convert` and installs `third_party/llama.cpp/requirements/requirements-convert_hf_to_gguf.txt`.
 4. Configures a native Release build and compiles `llama-server`, `llama-cli`, `llama-quantize`, and `llama-imatrix` into `build/llama.cpp/bin/`.
+
+Weights are opt-in (several GB). Either:
+
+```bash
+DOWNLOAD_MODEL=1 ./setup.sh
+```
+
+or, after a normal `./setup.sh`:
+
+```bash
+./scripts/download_and_convert_baseline.sh
+```
 
 ## Week 1 commands (host)
 
@@ -144,20 +156,38 @@ python scripts/prepare_tasks.py
 
 That writes `data/tasks/train.jsonl`, `data/tasks/test.jsonl`, `data/tasks/long_extra.jsonl`, and `data/tasks/split_summary.json`.
 
-Download the Hugging Face checkpoint, then convert to BF16 GGUF (large; under `models/`):
+### Download and convert the BF16 baseline
+
+Preferred (resume-safe). Uses `huggingface_hub` for small files, then `curl -C -` for the ~3.3 GB `model-00001` shard that often stalls, then converts to GGUF:
 
 ```bash
-mkdir -p models/hf
+./scripts/download_and_convert_baseline.sh
+```
+
+Manual equivalent:
+
+```bash
+mkdir -p models/hf/Qwen3-1.7B
+
+# Small files / second shard (may partially fail on the large shard; that is OK)
 .venv-convert/bin/python - <<'PY'
 from huggingface_hub import snapshot_download
 snapshot_download("Qwen/Qwen3-1.7B", local_dir="models/hf/Qwen3-1.7B")
 PY
+
+# Finish or resume the large shard (~3.3 GB). Safe to rerun.
+curl -L --retry 50 --retry-all-errors --retry-delay 3 \
+  -C - \
+  -o models/hf/Qwen3-1.7B/model-00001-of-00002.safetensors \
+  "https://huggingface.co/Qwen/Qwen3-1.7B/resolve/main/model-00001-of-00002.safetensors"
 
 .venv-convert/bin/python third_party/llama.cpp/convert_hf_to_gguf.py \
   models/hf/Qwen3-1.7B \
   --outfile models/qwen3-1.7b-bf16.gguf \
   --outtype bf16
 ```
+
+Optional: `export HF_TOKEN=...` before downloading for higher Hugging Face rate limits.
 
 Start `llama-server` in another terminal. `-c 16384` is the baseline cache. `--jinja` turns on the chat template Qwen3 tool calling needs.
 
@@ -222,11 +252,13 @@ scripts/prepare_tasks.py  BFCL subset + long extras + train/test split
 scripts/run_harness.py    multi-turn agent loop against llama-server
 scripts/characterize_baseline.py
                           prefill/decode sweep
+scripts/download_and_convert_baseline.sh
+                          HF download + curl resume + BF16 GGUF
 data/tasks/               generated splits
 third_party/llama.cpp     inference runtime
 third_party/gorilla/...   BFCL backends and long-context tasks
 build/llama.cpp/bin/      llama-server and related tools
-models/                   local GGUF files, not committed
+models/                   local HF weights and GGUF files, not committed
 results/                  per-run metrics, not committed
 docs/                     course project description
 ```
