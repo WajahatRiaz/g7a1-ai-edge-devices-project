@@ -1,0 +1,8 @@
+[submodule "third_party/llama.cpp"]
+	path = third_party/llama.cpp
+	url = https://github.com/ggml-org/llama.cpp
+	shallow = true
+[submodule "third_party/gorilla"]
+	path = third_party/gorilla
+	url = https://github.com/ShishirPatil/gorilla
+	shallow = true
