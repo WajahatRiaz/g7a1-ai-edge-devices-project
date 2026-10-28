@@ -1,0 +1,53 @@
+{
+  "backends": [
+    "MessageAPI",
+    "TradingBot"
+  ],
+  "n_bfcl": 33,
+  "n_train": 26,
+  "n_test": 12,
+  "n_long_extra": 5,
+  "n_early_detail_long": 2,
+  "train_ids": [
+    "multi_turn_long_context_143",
+    "multi_turn_long_context_116",
+    "multi_turn_long_context_104",
+    "multi_turn_long_context_123",
+    "multi_turn_long_context_105",
+    "multi_turn_long_context_130",
+    "multi_turn_long_context_121",
+    "multi_turn_long_context_149",
+    "multi_turn_long_context_135",
+    "multi_turn_long_context_101",
+    "multi_turn_long_context_128",
+    "multi_turn_long_context_141",
+    "multi_turn_long_context_122",
+    "multi_turn_long_context_142",
+    "multi_turn_long_context_115",
+    "multi_turn_long_context_113",
+    "multi_turn_long_context_137",
+    "multi_turn_long_context_126",
+    "multi_turn_long_context_114",
+    "multi_turn_long_context_108",
+    "multi_turn_long_context_111",
+    "multi_turn_long_context_103",
+    "multi_turn_long_context_117",
+    "long_extra_03_fund_after_dump",
+    "long_extra_04_watchlist",
+    "long_extra_05_second_fund"
+  ],
+  "test_ids": [
+    "multi_turn_long_context_118",
+    "multi_turn_long_context_145",
+    "multi_turn_long_context_107",
+    "multi_turn_long_context_127",
+    "multi_turn_long_context_120",
+    "multi_turn_long_context_132",
+    "multi_turn_long_context_146",
+    "multi_turn_long_context_131",
+    "multi_turn_long_context_138",
+    "multi_turn_long_context_100",
+    "long_extra_01_binding_card",
+    "long_extra_02_early_order"
+  ]
+}
