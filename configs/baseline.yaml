@@ -3,11 +3,12 @@ name: baseline_bf16_stateless
 model_family: Qwen3
 model_size: "1.7B"
 gguf: models/qwen3-1.7b-bf16.gguf
-context_size: 16384
+# Host-safe default. Raise toward 16384/32768 on the Pi for long dumps.
+context_size: 8192
 server:
   host: 127.0.0.1
   port: 8080
-  threads: null   # null => nproc
+  threads: 4      # null => nproc; keep modest on shared 16GB hosts
   jinja: true
 client:
   cache_prompt: false
@@ -15,6 +16,12 @@ client:
   top_p: 1.0
   max_tokens: 512
   schemas_in_system_prompt: true
+  # Also pass OpenAI-style tools so llama-server/Qwen3 emits native tool_calls.
+  # Schemas remain in the system prompt for the baseline requirement.
+  pass_tools_api: true
+  tool_choice: auto
+  # Qwen3 otherwise spends the budget on <think> and never calls tools.
+  enable_thinking: false
   unconstrained_sampling: true
   grammar: null
 tool_subset: configs/tool_subset.json

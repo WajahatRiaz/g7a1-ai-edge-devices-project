@@ -52,7 +52,8 @@ class AgentHarness:
         *,
         long_context: bool = True,
         put_schemas_in_system: bool = True,
-        pass_tools_api: bool = False,
+        pass_tools_api: bool = True,
+        tool_choice: str | None = "auto",
         max_tool_iters: int = 8,
     ) -> None:
         self.client = client
@@ -60,6 +61,7 @@ class AgentHarness:
         self.long_context = long_context
         self.put_schemas_in_system = put_schemas_in_system
         self.pass_tools_api = pass_tools_api
+        self.tool_choice = tool_choice
         self.max_tool_iters = max_tool_iters
 
         self.docs = load_bfcl_tool_docs(backends)
@@ -71,6 +73,19 @@ class AgentHarness:
             if put_schemas_in_system
             else "You are a tool-calling agent. Use the provided tools."
         )
+        # Per-backend OpenAI tool lists (API can expose only involved backends).
+        self._tools_by_backend = {
+            backend: tools_as_openai(load_bfcl_tool_docs([backend]))
+            for backend in backends
+        }
+
+    def _tools_for_task(self, involved_classes: list[str]) -> list[dict[str, Any]] | None:
+        if not self.pass_tools_api:
+            return None
+        tools: list[dict[str, Any]] = []
+        for cls in involved_classes:
+            tools.extend(self._tools_by_backend.get(cls, []))
+        return tools or self.openai_tools
 
     def run_task(self, task: dict[str, Any]) -> SessionResult:
         task_id = task["id"]
@@ -86,6 +101,7 @@ class AgentHarness:
         ]
         turns: list[TurnMetrics] = []
         prev_prompt_tokens = 0
+        tools = self._tools_for_task(task["involved_classes"])
 
         try:
             for turn_index, user_bundle in enumerate(task["question"]):
@@ -97,8 +113,11 @@ class AgentHarness:
                 user_chars = sum(len(m.get("content") or "") for m in user_bundle)
 
                 for _ in range(self.max_tool_iters):
-                    tools = self.openai_tools if self.pass_tools_api else None
-                    resp = self.client.chat(messages, tools=tools)
+                    resp = self.client.chat(
+                        messages,
+                        tools=tools,
+                        tool_choice=self.tool_choice if tools else None,
+                    )
                     message = resp["message"]
                     messages.append(message)
 
@@ -132,6 +151,19 @@ class AgentHarness:
                         validate_call(c, self.allowed_names, self.schemas_by_name)
                         for c in calls
                     ]
+                    if calls:
+                        print(
+                            f"  turn {turn_index}: tool_calls="
+                            f"{[c.get('name') for c in calls]}",
+                            flush=True,
+                        )
+                    else:
+                        preview = (message.get("content") or "")[:160].replace("\n", " ")
+                        print(
+                            f"  turn {turn_index}: no tool_calls "
+                            f"content_preview={preview!r}",
+                            flush=True,
+                        )
 
                     tool_ms = None
                     if calls:
@@ -139,13 +171,23 @@ class AgentHarness:
                         results = runtime.execute(calls)
                         tool_ms = (time.perf_counter() - t0) * 1000.0
                         for call, result in zip(calls, results):
+                            # Keep long dumps out of the next prompt if they would
+                            # explode the context; still execute for side effects.
+                            text = (
+                                result
+                                if isinstance(result, str)
+                                else json.dumps(result)
+                            )
+                            if len(text) > 12000:
+                                text = (
+                                    text[:12000]
+                                    + f"\n...[truncated {len(text) - 12000} chars]"
+                                )
                             messages.append(
                                 {
                                     "role": "tool",
                                     "tool_call_id": call.get("id") or call["name"],
-                                    "content": result
-                                    if isinstance(result, str)
-                                    else json.dumps(result),
+                                    "content": text,
                                 }
                             )
 

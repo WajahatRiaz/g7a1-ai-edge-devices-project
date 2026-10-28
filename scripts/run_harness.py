@@ -42,6 +42,22 @@ def main() -> None:
     parser.add_argument("--task-id", default=None, help="Run a single task id")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--base-url", default=None)
+    parser.add_argument(
+        "--long-context",
+        dest="long_context",
+        action="store_true",
+        default=False,
+        help=(
+            "Use BFCL long-context backend dumps (huge TradingBot history). "
+            "Off by default — can OOM a 16GB host with BF16 + large -c."
+        ),
+    )
+    parser.add_argument(
+        "--no-long-context",
+        dest="long_context",
+        action="store_false",
+        help="Disable verbose long-context tool dumps (default; safer on host)",
+    )
     args = parser.parse_args()
 
     with open(args.config, encoding="utf-8") as f:
@@ -62,12 +78,14 @@ def main() -> None:
     port = cfg["server"]["port"]
     base_url = args.base_url or f"http://{host}:{port}"
     client_cfg = cfg["client"]
+    enable_thinking = bool(client_cfg.get("enable_thinking", False))
     client = LlamaServerClient(
         base_url=base_url,
         cache_prompt=bool(client_cfg["cache_prompt"]),
         temperature=float(client_cfg["temperature"]),
         top_p=float(client_cfg["top_p"]),
         max_tokens=int(client_cfg["max_tokens"]),
+        chat_template_kwargs={"enable_thinking": enable_thinking},
     )
     if not client.health():
         raise SystemExit(
@@ -78,9 +96,16 @@ def main() -> None:
     harness = AgentHarness(
         client,
         subset["backends"],
-        long_context=True,
+        long_context=bool(args.long_context),
         put_schemas_in_system=bool(client_cfg["schemas_in_system_prompt"]),
-        pass_tools_api=False,
+        pass_tools_api=bool(client_cfg.get("pass_tools_api", True)),
+        tool_choice=client_cfg.get("tool_choice", "auto"),
+    )
+    print(
+        f"harness: long_context={args.long_context} "
+        f"pass_tools_api={client_cfg.get('pass_tools_api', True)} "
+        f"enable_thinking={enable_thinking}",
+        flush=True,
     )
 
     out_dir = ROOT / cfg["metrics_dir"] / args.split

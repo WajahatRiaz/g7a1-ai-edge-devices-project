@@ -17,7 +17,8 @@ class LlamaServerClient:
         temperature: float = 0.0,
         top_p: float = 1.0,
         max_tokens: int = 512,
-        timeout_s: float = 600.0,
+        timeout_s: float = 1800.0,
+        chat_template_kwargs: dict[str, Any] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.cache_prompt = cache_prompt
@@ -25,6 +26,7 @@ class LlamaServerClient:
         self.top_p = top_p
         self.max_tokens = max_tokens
         self.timeout_s = timeout_s
+        self.chat_template_kwargs = chat_template_kwargs or {}
 
     def health(self) -> bool:
         try:
@@ -54,6 +56,8 @@ class LlamaServerClient:
             "cache_prompt": self.cache_prompt,
             "stream": False,
         }
+        if self.chat_template_kwargs:
+            body["chat_template_kwargs"] = self.chat_template_kwargs
         if tools is not None:
             body["tools"] = tools
         if tool_choice is not None:

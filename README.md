@@ -92,8 +92,9 @@ Legend: `[x]` done on this Linux host · `[ ]` still open · `[P]` must be redon
 - [x] Submodules: `third_party/llama.cpp`, `third_party/gorilla`
 - [x] Native `llama-server` / `llama-cli` / `llama-quantize` / `llama-imatrix` build (x86 host)
 - [ ] `[P]` Rebuild llama.cpp on the Pi (`./setup.sh` there)
-- [ ] Download `Qwen/Qwen3-1.7B` (`./scripts/download_and_convert_baseline.sh` or `DOWNLOAD_MODEL=1 ./setup.sh`)
-- [ ] Convert to `models/qwen3-1.7b-bf16.gguf` (same script)
+- [x] Download `Qwen/Qwen3-1.7B` HF weights (`models/hf/Qwen3-1.7B/`)
+- [x] Convert to `models/qwen3-1.7b-bf16.gguf`
+- [x] Serve BF16 at 16k on the host (`llama-server` on `127.0.0.1:8080`)
 
 #### Task 1 — tool subset and long session
 
@@ -101,19 +102,19 @@ Legend: `[x]` done on this Linux host · `[ ]` still open · `[P]` must be redon
 - [x] BFCL long-context tasks for that subset (33 tasks)
 - [x] Train / test hold-out
 - [x] Five project long tasks (16k–32k target)
-- [x] At least two early-detail long tasks in the test split
+- [x] At least two early-detail long tasks held out in the test split
 
 #### Task 2 — client harness
 
 - [x] `src/a1_agent` harness (client, BFCL backends, parse/validate)
 - [x] Per-turn token and timing logs, call validity
 - [x] `cache_prompt: false` and schemas in the system prompt
-- [ ] End-to-end smoke against a live `llama-server`
+- [ ] End-to-end harness smoke against the live `llama-server`
 
 #### Task 3 — baseline characterization
 
-- [ ] Serve BF16 at 16k and run harness smoke on the host
-- [ ] Host prefill/decode sweep at ≥3 context lengths
+- [ ] Host harness smoke + session success / call-validity logs on a long task
+- [ ] Host prefill/decode sweep at ≥3 context lengths (`scripts/characterize_baseline.py`)
 - [ ] `[P]` Peak memory, bandwidth-bound decode check, power/thermal on the Pi
 - [ ] `[P]` Full held-out test split on the Pi before any optimization
 
@@ -272,35 +273,49 @@ Optional: `export HF_TOKEN=...` for higher Hugging Face rate limits.
 
 ### 7.2 Serve the baseline
 
+**Host memory warning:** BF16 (~3.8G weights) + a large KV cache can thrash swap and lock up a ~16GB machine. On this host use **one** server at `-c 8192` (or `16384` max). Do **not** start a second server on `:8081` with `-c 32768`, and do **not** pass `--long-context` until you have headroom (or are on the Pi).
+
 ```bash
+# confirm nothing else is holding the GGUF
+pkill -f llama-server || true
+
 ./build/llama.cpp/bin/llama-server \
   -m models/qwen3-1.7b-bf16.gguf \
-  -c 16384 \
+  -c 8192 \
   --jinja \
-  -t "$(nproc)" \
+  -t 4 \
   --host 127.0.0.1 \
   --port 8080
 ```
 
-### 7.3 Run the harness
+### 7.3 Host baseline validation (run in series)
+
+Keep that **single** `llama-server` running. In a second shell, run these **one after another**. Only continue if the previous step finishes cleanly. Harness defaults to **no** BFCL long dumps (`--long-context` is opt-in).
 
 Baseline config: `cache_prompt: false`, schemas in the system prompt ([`configs/baseline.yaml`](configs/baseline.yaml)).
 
 ```bash
 source .venv/bin/activate
+
+# 1) smoke one TradingBot task  (Task 2 — harness + tools; no long dumps)
 python scripts/run_harness.py --split long_extra --task-id long_extra_03_fund_after_dump
+
+# 2) small held-out sample  (Task 1/3 — held-out split sanity check)
 python scripts/run_harness.py --split test --limit 3
+
+# 3) host prefill/decode sweep  (Task 3 — keep lengths under server -c)
+python scripts/characterize_baseline.py --lengths 512,2048,4096
 ```
 
-### 7.4 Characterize (host timings)
+| Step | What it checks | Milestone |
+|---|---|---|
+| 1 | Server + harness + tools on a TradingBot task (short dumps) | Week 1 Task 2 |
+| 2 | Same pipeline on a few held-out test tasks | Week 1 Tasks 1 & 3 |
+| 3 | Prefill/decode at 512 / 2048 / 4096 tokens | Week 1 Task 3 (host timings) |
 
-```bash
-python scripts/characterize_baseline.py --lengths 512,2048,8192
-```
+Full BFCL long-context dumps (`--long-context`) and larger `-c` belong on the Pi (or a host with free RAM and no swap thrash). Logs land under `results/baseline/`. Memory, energy, and thermal fields stay null until the Pi.
 
-Memory, energy, and thermal fields stay null until the Pi.
-
-### 7.5 Quantize only after the baseline is characterized
+### 7.4 Quantize only after the baseline is characterized
 
 ```bash
 ./build/llama.cpp/bin/llama-quantize \

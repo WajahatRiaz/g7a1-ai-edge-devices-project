@@ -62,8 +62,8 @@ def main() -> None:
     parser.add_argument("--base-url", default=None)
     parser.add_argument(
         "--lengths",
-        default="512,2048,8192",
-        help="Approximate prompt token lengths to sweep",
+        default="512,2048,4096",
+        help="Approximate prompt token lengths to sweep (stay under server -c)",
     )
     parser.add_argument("--cache-prompt", action="store_true")
     args = parser.parse_args()

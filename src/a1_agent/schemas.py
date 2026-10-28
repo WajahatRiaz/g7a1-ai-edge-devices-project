@@ -37,13 +37,37 @@ def load_bfcl_tool_docs(backends: list[str]) -> list[dict[str, Any]]:
     return docs
 
 
+_TYPE_MAP = {
+    "dict": "object",
+    "float": "number",
+    "int": "integer",
+    "bool": "boolean",
+    "list": "array",
+}
+
+
+def _normalize_json_schema(node: Any) -> Any:
+    """Map BFCL schema types (float/dict/...) to JSON Schema for llama-server."""
+    if isinstance(node, list):
+        return [_normalize_json_schema(x) for x in node]
+    if not isinstance(node, dict):
+        return node
+    out: dict[str, Any] = {}
+    for key, value in node.items():
+        if key == "type" and isinstance(value, str):
+            out[key] = _TYPE_MAP.get(value, value)
+        else:
+            out[key] = _normalize_json_schema(value)
+    return out
+
+
 def tools_as_openai(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Convert BFCL function docs to OpenAI-style tool definitions."""
     tools = []
     for doc in docs:
         params = doc.get("parameters", {"type": "object", "properties": {}, "required": []})
-        # BFCL uses "dict"; OpenAI/JSON Schema expects "object".
-        if params.get("type") == "dict":
+        params = _normalize_json_schema(params)
+        if params.get("type") != "object":
             params = {**params, "type": "object"}
         tools.append(
             {
@@ -59,13 +83,29 @@ def tools_as_openai(docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def schemas_system_prompt(docs: list[dict[str, Any]]) -> str:
-    """Baseline: every tool schema lives in the system prompt."""
+    """Baseline: every tool schema lives in the system prompt.
+
+    Response schemas are omitted from the dump; they are not needed to call a tool
+    and inflate the prompt by several thousand tokens.
+    """
+    compact = []
+    for doc in docs:
+        compact.append(
+            {
+                "name": doc["name"],
+                "description": doc.get("description", ""),
+                "parameters": _normalize_json_schema(
+                    doc.get("parameters", {"type": "object", "properties": {}, "required": []})
+                ),
+            }
+        )
     lines = [
         "You are a tool-calling agent. Solve the user request by calling tools.",
-        "Emit only well-formed tool calls using the available functions.",
+        "When a tool is needed, emit a native tool call (do not only describe the call in prose).",
         "Do not invent tools. Prefer the minimum sequence of calls that completes the turn.",
+        "Do not use thinking/reasoning traces; call tools directly.",
         "",
         "Available tools (JSON schemas):",
-        json.dumps(docs, indent=2),
+        json.dumps(compact, indent=2),
     ]
     return "\n".join(lines)
