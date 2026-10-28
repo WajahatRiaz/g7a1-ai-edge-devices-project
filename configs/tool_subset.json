@@ -1,0 +1,12 @@
+{
+  "name": "trading_message_v1",
+  "description": "BFCL multi-turn backends in long-context mode. TradingBot is required; MessageAPI brings the set to 30 tools.",
+  "backends": ["TradingBot", "MessageAPI"],
+  "long_context": true,
+  "source_dataset": "BFCL_v4_multi_turn_long_context.json",
+  "notes": [
+    "TradingBot alone exposes 20 tools; MessageAPI adds 10.",
+    "Only tasks whose involved_classes are a subset of these backends are kept.",
+    "Custom long tasks force verbose TradingBot dumps so sessions reach 16k-32k tokens."
+  ]
+}

@@ -1,0 +1,28 @@
+# Week-1 baseline. Prefix caching must stay off until Task 4.
+name: baseline_bf16_stateless
+model_family: Qwen3
+model_size: "1.7B"
+gguf: models/qwen3-1.7b-bf16.gguf
+context_size: 16384
+server:
+  host: 127.0.0.1
+  port: 8080
+  threads: null   # null => nproc
+  jinja: true
+client:
+  cache_prompt: false
+  temperature: 0.0
+  top_p: 1.0
+  max_tokens: 512
+  schemas_in_system_prompt: true
+  unconstrained_sampling: true
+  grammar: null
+tool_subset: configs/tool_subset.json
+tasks:
+  train: data/tasks/train.jsonl
+  test: data/tasks/test.jsonl
+  long_extra: data/tasks/long_extra.jsonl
+metrics_dir: results/baseline
+host_note: >
+  Latency, memory, and power must be measured on the Pi. This host can
+  debug the harness and estimate accuracy with the same GGUF and pipeline.
