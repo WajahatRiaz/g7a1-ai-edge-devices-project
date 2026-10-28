@@ -1,0 +1,10 @@
+# Lean host/Pi deps for the harness and BFCL multi-turn backends.
+# Do not `pip install bfcl-eval` with its default extras: that pulls torch,
+# sentence-transformers, and cloud SDKs we do not need on device.
+#
+# The gorilla submodule is put on PYTHONPATH by setup.sh / the run scripts.
+requests>=2.31
+PyYAML>=6.0
+
+# GGUF conversion is separate. llama.cpp pins numpy~=2.2.6 and torch==2.11.0
+# (CPU wheel). setup.sh installs that into .venv-convert.

@@ -1,0 +1,12 @@
+.venv/
+.venv-convert/
+build/
+__pycache__/
+*.py[cod]
+models/
+models/hf/
+*.gguf
+results/
+logs/
+*.egg-info/
+.pytest_cache/
