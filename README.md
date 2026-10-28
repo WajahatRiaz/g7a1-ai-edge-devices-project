@@ -1,0 +1,1 @@
+# g7a1-ai-edge-devices-project
