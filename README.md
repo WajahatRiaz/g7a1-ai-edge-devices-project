@@ -94,7 +94,7 @@ Legend: `[x]` done on this Linux host · `[ ]` still open · `[P]` must be redon
 - [ ] `[P]` Rebuild llama.cpp on the Pi (`./setup.sh` there)
 - [x] Download `Qwen/Qwen3-1.7B` HF weights (`models/hf/Qwen3-1.7B/`)
 - [x] Convert to `models/qwen3-1.7b-bf16.gguf`
-- [x] Serve BF16 at 16k on the host (`llama-server` on `127.0.0.1:8080`)
+- [x] Serve BF16 on the host (`llama-server` on `127.0.0.1:8080`, host-safe `-c 8192`)
 
 #### Task 1 — tool subset and long session
 
@@ -109,14 +109,16 @@ Legend: `[x]` done on this Linux host · `[ ]` still open · `[P]` must be redon
 - [x] `src/a1_agent` harness (client, BFCL backends, parse/validate)
 - [x] Per-turn token and timing logs, call validity
 - [x] `cache_prompt: false` and schemas in the system prompt
-- [ ] End-to-end harness smoke against the live `llama-server`
+- [x] End-to-end harness smoke against the live `llama-server` (`long_extra_03_fund_after_dump`, success, 4/4 calls)
 
 #### Task 3 — baseline characterization
 
-- [ ] Host harness smoke + session success / call-validity logs on a long task
+- [x] Host harness smoke + call-validity logs on a long task (`results/baseline/long_extra/`)
+- [x] Host held-out sample: 3 test tasks, all tool calls schema-valid (`results/baseline/test/`)
 - [ ] Host prefill/decode sweep at ≥3 context lengths (`scripts/characterize_baseline.py`)
 - [ ] `[P]` Peak memory, bandwidth-bound decode check, power/thermal on the Pi
 - [ ] `[P]` Full held-out test split on the Pi before any optimization
+- [ ] `[P]` BFCL `--long-context` dumps and larger `-c` (16k/32k) on the Pi
 
 ---
 
