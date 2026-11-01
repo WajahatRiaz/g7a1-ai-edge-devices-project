@@ -277,18 +277,28 @@ Optional: `export HF_TOKEN=...` for higher Hugging Face rate limits.
 
 **Host memory warning:** BF16 (~3.8G weights) + a large KV cache can thrash swap and lock up a ~16GB machine. On this host use **one** server at `-c 8192` (or `16384` max). Do **not** start a second server on `:8081` with `-c 32768`, and do **not** pass `--long-context` until you have headroom (or are on the Pi).
 
-```bash
-# confirm nothing else is holding the GGUF
-pkill -f llama-server || true
+**Interactive chat (Web UI):** start the server, then open **http://127.0.0.1:8080/** in a browser. The wrapper picks `models/qwen3-1.7b-bf16.gguf` when present, otherwise `models/qwen3-1.7b-q8_0.gguf` (override with `MODEL=...`).
 
+```bash
+pkill -f llama-server || true
+./scripts/start_server.sh
+```
+
+Manual equivalent (BF16 baseline):
+
+```bash
+export LD_LIBRARY_PATH="${PWD}/build/llama.cpp/bin:${LD_LIBRARY_PATH:-}"
 ./build/llama.cpp/bin/llama-server \
   -m models/qwen3-1.7b-bf16.gguf \
   -c 8192 \
   --jinja \
+  --webui \
   -t 4 \
   --host 127.0.0.1 \
   --port 8080
 ```
+
+**One-shot prompt (terminal, not multi-turn):** `./scripts/chat_once.sh "your question"` — uses `llama-cli`; this build has no `-cnv` REPL.
 
 ### 7.3 Host baseline validation (run in series)
 
@@ -297,16 +307,14 @@ Keep that **single** `llama-server` running. In a second shell, run these **one 
 Baseline config: `cache_prompt: false`, schemas in the system prompt ([`configs/baseline.yaml`](configs/baseline.yaml)).
 
 ```bash
-source .venv/bin/activate
-
 # 1) smoke one TradingBot task  (Task 2 — harness + tools; no long dumps)
-python scripts/run_harness.py --split long_extra --task-id long_extra_03_fund_after_dump
+./scripts/run_harness.sh --split long_extra --task-id long_extra_03_fund_after_dump
 
 # 2) small held-out sample  (Task 1/3 — held-out split sanity check)
-python scripts/run_harness.py --split test --limit 3
+./scripts/run_harness.sh --split test --limit 3
 
 # 3) host prefill/decode sweep  (Task 3 — keep lengths under server -c)
-python scripts/characterize_baseline.py --lengths 512,2048,4096
+./scripts/characterize_baseline.sh --lengths 512,2048,4096
 ```
 
 | Step | What it checks | Milestone |
@@ -360,6 +368,10 @@ configs/
   baseline.yaml                       # BF16, 16k, cache_prompt=false
 src/a1_agent/                         # client, parser, backends, harness
 scripts/
+  start_server.sh                     # llama-server + Web UI (interactive chat)
+  chat_once.sh                        # single-turn llama-cli prompt
+  run_harness.sh                      # wrapper → run_harness.py (BFCL agent)
+  characterize_baseline.sh            # wrapper → characterize_baseline.py
   prepare_tasks.py                    # BFCL subset + long extras + split
   run_harness.py                      # multi-turn loop vs llama-server
   characterize_baseline.py            # prefill/decode sweep
