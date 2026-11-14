@@ -215,9 +215,9 @@ source .venv/bin/activate
 What `./setup.sh` does by default:
 
 1. Init submodules if needed  
-2. Create `.venv` and install lean harness deps  
-3. Create `.venv-convert` for GGUF conversion  
-4. Build `llama-server`, `llama-cli`, `llama-quantize`, `llama-imatrix`
+2. Create `.venv` and install lean harness deps (`requests`, `PyYAML` only)  
+3. Build `llama-server`, `llama-cli`, `llama-quantize`, `llama-imatrix`  
+4. `.venv-convert` (torch/transformers) is created only when you download or convert weights
 
 ### 6.3 Optional: download and convert the model
 

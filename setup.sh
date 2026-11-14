@@ -11,8 +11,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 DOWNLOAD_MODEL="${DOWNLOAD_MODEL:-0}"
 
-if [[ ! -f third_party/llama.cpp/CMakeLists.txt || ! -f third_party/gorilla/berkeley-function-call-leaderboard/pyproject.toml ]]; then
+if [[ ! -f third_party/llama.cpp/CMakeLists.txt \
+   || ! -f third_party/gorilla/berkeley-function-call-leaderboard/pyproject.toml ]]; then
   git submodule update --init --depth 1
+fi
+if [[ ! -f third_party/gorilla/berkeley-function-call-leaderboard/pyproject.toml ]]; then
+  git submodule deinit -f third_party/gorilla 2>/dev/null || true
+  rm -rf third_party/gorilla
+  git submodule update --init --depth 1 third_party/gorilla
 fi
 
 missing=()
@@ -57,12 +63,6 @@ print("TradingBot OK:", TradingBot)
 print("tools:", len(load_bfcl_tool_docs(["TradingBot", "MessageAPI"])))
 PY
 
-# Converter pins a different numpy than a full BFCL install would, and we keep
-# conversion out of .venv entirely.
-python3 -m venv .venv-convert
-.venv-convert/bin/pip install --upgrade pip
-.venv-convert/bin/pip install -r third_party/llama.cpp/requirements/requirements-convert_hf_to_gguf.txt
-
 cmake -S third_party/llama.cpp -B build/llama.cpp \
   -DCMAKE_BUILD_TYPE=Release \
   -DGGML_NATIVE=ON \
@@ -77,15 +77,16 @@ cmake --build build/llama.cpp -j "$(nproc)" \
 
 echo "llama-server: ${ROOT}/build/llama.cpp/bin/llama-server"
 echo "Python env:  ${ROOT}/.venv"
-echo "GGUF convert env: ${ROOT}/.venv-convert"
 
 if [[ "${DOWNLOAD_MODEL}" == "1" ]]; then
-  echo "==> DOWNLOAD_MODEL=1: fetching and converting the BF16 baseline"
+  echo "==> DOWNLOAD_MODEL=1: converter venv + model fetch"
+  "${ROOT}/scripts/ensure_convert_venv.sh"
   "${ROOT}/scripts/download_and_convert_baseline.sh"
 else
   echo "Model weights were not downloaded."
   echo "When ready (multi-GB, resume-safe):"
   echo "  ./scripts/download_and_convert_baseline.sh"
+  echo "  (creates .venv-convert with torch/transformers only if needed)"
   echo "Or rerun setup with weights included:"
   echo "  DOWNLOAD_MODEL=1 ./setup.sh"
 fi

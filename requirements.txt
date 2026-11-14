@@ -6,5 +6,4 @@
 requests>=2.31
 PyYAML>=6.0
 
-# GGUF conversion is separate. llama.cpp pins numpy~=2.2.6 and torch==2.11.0
-# (CPU wheel). setup.sh installs that into .venv-convert.
+# GGUF conversion is separate: scripts/ensure_convert_venv.sh (on demand).

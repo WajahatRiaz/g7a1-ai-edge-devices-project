@@ -14,10 +14,7 @@ SHARD1_URL="https://huggingface.co/Qwen/Qwen3-1.7B/resolve/main/${SHARD1}"
 # Published size from HF (bytes).
 SHARD1_BYTES=3441185608
 
-if [[ ! -x .venv-convert/bin/python ]]; then
-  echo "Missing .venv-convert. Run ./setup.sh first." >&2
-  exit 1
-fi
+"${ROOT}/scripts/ensure_convert_venv.sh"
 command -v curl >/dev/null 2>&1 || {
   echo "curl is required to resume the large model shard." >&2
   exit 1
