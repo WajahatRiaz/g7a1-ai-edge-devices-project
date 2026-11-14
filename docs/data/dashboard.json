@@ -1,6 +1,6 @@
 {
-  "schema": 1,
-  "updated_at": "2026-11-14T12:07:20.434239+00:00",
+  "schema": 2,
+  "updated_at": "2026-11-14T12:25:13.515514+00:00",
   "project": {
     "name": "Long Context Tool-Calling Agent",
     "course": "AI624 \u00b7 AI on Edge Devices \u00b7 Fall 2026",
@@ -25,7 +25,5 @@
     "total_slots": 4,
     "build_info": "b1-d1eb0de"
   },
-  "sessions": [],
-  "characterization": null,
-  "device_runs": []
+  "runs": []
 }

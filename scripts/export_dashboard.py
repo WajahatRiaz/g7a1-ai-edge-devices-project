@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Fold results/baseline into docs/data/dashboard.json for GitHub Pages.
+"""Fold every dated run into docs/data/dashboard.json for GitHub Pages.
 
-Reads harness session logs, the prefill/decode sweep, and any device samples
-written by scripts/sample_device.py. Missing inputs stay empty so the page
-can be published before the first run.
+Reads results/baseline/history/<timestamp>/ and keeps runs already published
+in the dashboard file, so later exports still show earlier dates.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 from datetime import datetime, timezone
@@ -56,63 +56,97 @@ def server_snapshot(base_url: str) -> dict | None:
     }
 
 
-def load_sessions() -> list[dict]:
+def session_from_payload(payload: dict, split: str) -> dict:
+    turns = payload.get("turns") or []
+    ok_calls = sum(
+        1
+        for turn in turns
+        for verdict in turn.get("call_validity") or []
+        if verdict.get("ok")
+    )
+    total_calls = sum(len(turn.get("call_validity") or []) for turn in turns)
+    return {
+        "split": split,
+        "task_id": payload.get("task_id"),
+        "success": payload.get("success"),
+        "error": payload.get("error"),
+        "n_messages": payload.get("n_messages"),
+        "calls_ok": ok_calls,
+        "calls_total": total_calls,
+        "turns": turns,
+    }
+
+
+def load_sessions_from(directory: Path) -> list[dict]:
     sessions = []
     for split in SPLITS:
-        split_dir = RESULTS / split
+        split_dir = directory / split
         if not split_dir.is_dir():
             continue
         for path in sorted(split_dir.glob("*.json")):
             if path.name == "summary.json":
                 continue
             with open(path, encoding="utf-8") as handle:
-                payload = json.load(handle)
-            turns = payload.get("turns") or []
-            ok_calls = sum(
-                1
-                for turn in turns
-                for verdict in turn.get("call_validity") or []
-                if verdict.get("ok")
-            )
-            total_calls = sum(len(turn.get("call_validity") or []) for turn in turns)
-            sessions.append(
-                {
-                    "split": split,
-                    "task_id": payload.get("task_id"),
-                    "success": payload.get("success"),
-                    "error": payload.get("error"),
-                    "n_messages": payload.get("n_messages"),
-                    "calls_ok": ok_calls,
-                    "calls_total": total_calls,
-                    "turns": turns,
-                }
-            )
+                sessions.append(session_from_payload(json.load(handle), split))
     return sessions
 
 
-def load_characterization() -> dict | None:
-    path = RESULTS / "characterization.json"
+def load_characterization_from(directory: Path) -> dict | None:
+    path = directory / "characterization.json"
     if not path.is_file():
         return None
     with open(path, encoding="utf-8") as handle:
         return json.load(handle)
 
 
-def load_device_runs() -> list[dict]:
-    runs: list[dict] = []
-    jsonl = RESULTS / "device_runs.jsonl"
-    if jsonl.is_file():
-        with open(jsonl, encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if line:
-                    runs.append(json.loads(line))
-        return runs
-    latest = RESULTS / "device.json"
-    if latest.is_file():
-        with open(latest, encoding="utf-8") as handle:
-            runs.append(json.load(handle))
-    return runs
+def load_sample_device():
+    path = ROOT / "scripts" / "sample_device.py"
+    spec = importlib.util.spec_from_file_location("sample_device", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_history_run(directory: Path, sample_device) -> dict | None:
+    meta_path = directory / "meta.json"
+    if not meta_path.is_file():
+        return None
+    with open(meta_path, encoding="utf-8") as handle:
+        meta = json.load(handle)
+    return {
+        "id": meta.get("id") or directory.name,
+        "started_at": meta.get("started_at"),
+        "ended_at": meta.get("ended_at"),
+        "kind": meta.get("kind") or "power",
+        "command": meta.get("command") or [],
+        "exit_code": meta.get("exit_code"),
+        "sessions": load_sessions_from(directory),
+        "characterization": load_characterization_from(directory),
+        "device": sample_device.load_experiment(directory),
+    }
+
+
+def load_runs() -> list[dict]:
+    found: dict[str, dict] = {}
+    if OUT.is_file():
+        try:
+            previous = json.loads(OUT.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            previous = {}
+        for run in previous.get("runs") or []:
+            run_id = run.get("id")
+            if run_id:
+                found[run_id] = run
+    sample_device = load_sample_device()
+    history = RESULTS / "history"
+    if history.is_dir():
+        for directory in sorted(path for path in history.iterdir() if path.is_dir()):
+            run = load_history_run(directory, sample_device)
+            if run is not None:
+                found[run["id"]] = run
+    return sorted(found.values(), key=lambda run: run.get("started_at") or run.get("id") or "")
 
 
 def main() -> None:
@@ -121,9 +155,9 @@ def main() -> None:
     host = cfg["server"]["host"]
     port = cfg["server"]["port"]
     base_url = f"http://{host}:{port}"
-    characterization = load_characterization()
+    runs = load_runs()
     payload = {
-        "schema": 1,
+        "schema": 2,
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "project": {
             "name": "Long Context Tool-Calling Agent",
@@ -143,9 +177,7 @@ def main() -> None:
             "llama_cpp_commit": llama_cpp_commit(),
         },
         "server": server_snapshot(base_url),
-        "sessions": load_sessions(),
-        "characterization": characterization,
-        "device_runs": load_device_runs(),
+        "runs": runs,
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(OUT, "w", encoding="utf-8") as handle:
@@ -153,9 +185,10 @@ def main() -> None:
         handle.write("\n")
     print(f"wrote {OUT}")
     print(
-        f"sessions={len(payload['sessions'])} "
-        f"sweep={'yes' if characterization else 'no'} "
-        f"device_runs={len(payload['device_runs'])}"
+        f"runs={len(runs)} " + " ".join(
+            f"{kind}={sum(1 for run in runs if run.get('kind') == kind)}"
+            for kind in ("long_task", "held_out", "sweep")
+        )
     )
 
 

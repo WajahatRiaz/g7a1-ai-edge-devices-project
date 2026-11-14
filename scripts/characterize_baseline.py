@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -93,7 +94,12 @@ def main() -> None:
         rows.append(row)
         print(json.dumps(row, indent=2))
 
-    out = ROOT / cfg["metrics_dir"] / "characterization.json"
+    metrics_root = (
+        Path(os.environ["A1_RESULTS_DIR"])
+        if os.environ.get("A1_RESULTS_DIR")
+        else ROOT / cfg["metrics_dir"]
+    )
+    out = metrics_root / "characterization.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", encoding="utf-8") as f:
         json.dump(

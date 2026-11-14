@@ -3,136 +3,118 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>A1 baseline dashboard</title>
+  <title>A1 baseline</title>
   <style>
     :root {
-      --bg: #f3efe6;
-      --ink: #1c1915;
-      --muted: #5e584e;
-      --line: #ddd4c4;
-      --card: #fffdf8;
-      --ok: #1f6b45;
-      --ok-bg: #e5f2ea;
-      --wait: #8a5a12;
-      --wait-bg: #f8efdc;
-      --bad: #8d2f2f;
-      --bad-bg: #f8e8e6;
-      --prefill: #1f6b45;
-      --decode: #2f5f86;
-      --shadow: 0 1px 0 rgba(28, 25, 21, 0.04);
+      --bg: #f7f7f5;
+      --ink: #171717;
+      --muted: #6d6d6d;
+      --line: #e6e6e3;
+      --surface: #fff;
+      --good: #1b7f4e;
+      --bad: #a33b32;
+      --prefill: #1b7f4e;
+      --decode: #2c6490;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       background: var(--bg);
       color: var(--ink);
-      font: 15px/1.45 "Segoe UI", "Helvetica Neue", sans-serif;
+      font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     }
-    header, main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; }
-    header { padding: 28px 0 8px; }
-    .kicker {
-      margin: 0 0 6px;
-      color: var(--muted);
-      font-size: 12px;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-    h1 { margin: 0; font-size: 28px; font-weight: 650; letter-spacing: -0.02em; }
-    h2 { margin: 0 0 12px; font-size: 16px; font-weight: 650; }
+    header, main { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
+    header { padding: 28px 0 0; }
+    h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+    h2 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+    .kicker { margin: 0 0 6px; color: var(--muted); font-size: 12px; }
     .sub { margin: 6px 0 0; color: var(--muted); }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
-    .chip {
-      border: 1px solid var(--line);
-      background: var(--card);
-      border-radius: 999px;
-      padding: 4px 10px;
-      font-size: 12px;
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+    .chip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; color: var(--muted); font-size: 12px; background: var(--surface); }
+    .chip strong { color: var(--ink); font-weight: 600; }
+    .tabs { display: flex; gap: 2px; margin-top: 18px; border-bottom: 1px solid var(--line); }
+    .tabs button, .dates button {
+      font: inherit;
+      cursor: pointer;
+    }
+    .tabs button {
+      appearance: none;
+      background: transparent;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      padding: 8px 12px;
       color: var(--muted);
     }
-    .chip strong { color: var(--ink); font-weight: 650; }
-    main { display: grid; gap: 16px; padding-bottom: 48px; }
-    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-    .card, .panel {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      box-shadow: var(--shadow);
-    }
-    .card { padding: 14px 16px; }
-    .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .card .value { margin-top: 4px; font-size: 26px; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
-    .card .hint { margin-top: 2px; color: var(--muted); font-size: 12px; }
-    .split { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 12px; }
-    .panel { padding: 16px; }
+    .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-top: 14px; }
+    .dates { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+    .dates button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 10px; color: var(--muted); }
+    .dates button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
     table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-    th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    th { color: var(--muted); font-size: 12px; font-weight: 650; }
+    th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; font-weight: 600; }
     tr:last-child td { border-bottom: 0; }
     .num { text-align: right; }
-    .bar-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; align-items: center; margin: 8px 0; }
-    .bar-label { font-size: 12px; color: var(--muted); }
-    .track { position: relative; height: 22px; background: #f3efe6; border-radius: 6px; overflow: hidden; }
-    .fill { height: 100%; border-radius: 6px; }
-    .fill span {
-      position: absolute;
-      right: 8px;
-      top: 3px;
-      font-size: 12px;
-      color: var(--ink);
-    }
-    .fill.prefill { background: rgba(31, 107, 69, 0.28); }
-    .fill.decode { background: rgba(47, 95, 134, 0.28); margin-top: 0; }
-    .legend { display: flex; gap: 14px; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
-    .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
-    .swatch.prefill { background: var(--prefill); }
-    .swatch.decode { background: var(--decode); }
-    .pill {
-      display: inline-block;
-      border-radius: 999px;
-      padding: 1px 8px;
-      font-size: 12px;
-      font-weight: 650;
-    }
-    .pill.ok { background: var(--ok-bg); color: var(--ok); }
-    .pill.wait { background: var(--wait-bg); color: var(--wait); }
-    .pill.bad { background: var(--bad-bg); color: var(--bad); }
-    .metric { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-    .metric:last-child { border-bottom: 0; }
-    .metric span { color: var(--muted); }
-    .note { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
-    details.turn { margin-top: 6px; }
-    summary { cursor: pointer; color: var(--muted); font-size: 13px; }
-    pre {
-      margin: 8px 0 0;
-      padding: 10px;
-      overflow: auto;
-      background: #f7f3eb;
-      border-radius: 8px;
-      font-size: 12px;
-    }
+    .good { color: var(--good); }
+    .bad { color: var(--bad); }
+    .delta { margin-left: 6px; font-size: 12px; }
+    .note, .empty { color: var(--muted); }
+    .note { font-size: 13px; margin: 8px 0 0; }
+    code { font-family: ui-monospace, "SF Mono", ui-monospace, monospace; font-size: 12px; }
     ol.steps { margin: 8px 0 0; padding-left: 18px; }
     ol.steps li { margin: 6px 0; }
-    code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
-    .empty { color: var(--muted); }
-    footer { color: var(--muted); font-size: 12px; padding-bottom: 8px; }
-    @media (max-width: 800px) {
-      .cards, .split { grid-template-columns: 1fr; }
+    .trace { width: 100%; height: auto; display: block; }
+    .legend { display: flex; gap: 14px; color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .swatch { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 2px; }
+    .bar-row { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: center; margin: 7px 0; }
+    .track { position: relative; height: 18px; background: #f3f3f1; border-radius: 4px; overflow: hidden; }
+    .fill { height: 100%; }
+    .fill span { position: absolute; right: 8px; top: 1px; font-size: 12px; }
+    .fill.prefill { background: rgba(27, 127, 78, 0.22); }
+    .fill.decode { background: rgba(44, 100, 144, 0.22); }
+    footer { color: var(--muted); font-size: 12px; margin: 16px 0 36px; }
+    @media (max-width: 720px) {
+      header, main { width: min(1080px, calc(100% - 24px)); }
+      .tabs { overflow-x: auto; }
     }
   </style>
 </head>
 <body>
   <header>
     <p class="kicker" id="kicker">AI624 · Project A1</p>
-    <h1 id="title">Baseline dashboard</h1>
-    <p class="sub" id="subtitle">Waiting for docs/data/dashboard.json</p>
+    <h1 id="title">Baseline</h1>
+    <p class="sub" id="subtitle">Loading runs</p>
     <div class="chips" id="chips"></div>
   </header>
   <main id="main"></main>
   <script>
+    const TABS = [
+      ["overview", "Overview"],
+      ["long_task", "Long task"],
+      ["held_out", "Held-out"],
+      ["sweep", "Sweep"],
+    ];
+    const KIND = {
+      long_task: "Long task",
+      held_out: "Held-out",
+      sweep: "Sweep",
+      power: "Power",
+      harness: "Harness",
+      train: "Train",
+    };
+    const state = {
+      tab: (location.hash || "#overview").slice(1),
+      picked: {},
+    };
+    if (!TABS.some(([id]) => id === state.tab)) state.tab = "overview";
+
     const $ = (id) => document.getElementById(id);
 
-    function dash(value) {
-      return value === null || value === undefined || value === "" ? "—" : value;
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[ch]));
     }
 
     function num(value, digits = 0) {
@@ -144,13 +126,11 @@
     }
 
     function ms(value) {
-      if (value === null || value === undefined) return "—";
-      return `${num(value, value >= 100 ? 0 : 1)} ms`;
+      return value === null || value === undefined ? "—" : `${num(value, value >= 100 ? 0 : 1)} ms`;
     }
 
     function toks(value) {
-      if (value === null || value === undefined) return "—";
-      return `${num(value, 1)} tok/s`;
+      return value === null || value === undefined ? "—" : `${num(value, 1)} tok/s`;
     }
 
     function bytes(value) {
@@ -160,243 +140,386 @@
     }
 
     function joules(value) {
-      if (value === null || value === undefined) return "—";
-      return `${num(value, 2)} J`;
+      return value === null || value === undefined ? "—" : `${num(value, 1)} J`;
     }
 
     function celsius(value) {
-      if (value === null || value === undefined) return "—";
-      return `${num(value, 1)} °C`;
-    }
-
-    function pill(ok) {
-      if (ok === true) return '<span class="pill ok">yes</span>';
-      if (ok === false) return '<span class="pill bad">no</span>';
-      return '<span class="pill wait">n/a</span>';
+      return value === null || value === undefined ? "—" : `${num(value, 1)} °C`;
     }
 
     function median(values) {
-      const nums = values.filter((v) => typeof v === "number" && !Number.isNaN(v)).sort((a, b) => a - b);
+      const nums = values.filter((value) => typeof value === "number" && !Number.isNaN(value)).sort((a, b) => a - b);
       if (!nums.length) return null;
       const mid = Math.floor(nums.length / 2);
       return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
     }
 
-    function sum(values) {
-      return values.reduce((acc, value) => acc + value, 0);
+    function byDate(a, b) {
+      return String(a.started_at || a.id).localeCompare(String(b.started_at || b.id));
     }
 
-    function chip(label, value) {
-      return `<span class="chip">${label} <strong>${dash(value)}</strong></span>`;
+    function when(iso) {
+      if (!iso) return "—";
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return iso;
+      return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
     }
 
-    function turnRows(turns) {
-      if (!turns || !turns.length) return "<p class='empty'>No turns recorded.</p>";
-      const body = turns.map((turn) => {
-        const ok = (turn.call_validity || []).filter((item) => item.ok).length;
-        const total = (turn.call_validity || []).length;
+    function turnsOf(run) {
+      return (run.sessions || []).flatMap((session) => session.turns || []);
+    }
+
+    function medianPrefill(run) {
+      return median(turnsOf(run).map((turn) => turn.prefill_ms));
+    }
+
+    function medianDecode(run) {
+      return median(turnsOf(run).map((turn) => turn.decode_ms));
+    }
+
+    function callStats(run) {
+      const ok = (run.sessions || []).reduce((sum, session) => sum + (session.calls_ok || 0), 0);
+      const total = (run.sessions || []).reduce((sum, session) => sum + (session.calls_total || 0), 0);
+      return { ok, total };
+    }
+
+    function delta(current, previous, lowerIsBetter) {
+      if (typeof current !== "number" || typeof previous !== "number" || previous === 0) return "";
+      const pct = ((current - previous) / Math.abs(previous)) * 100;
+      const rounded = Math.round(pct);
+      if (rounded === 0) return "";
+      const improved = lowerIsBetter ? rounded < 0 : rounded > 0;
+      const sign = rounded > 0 ? "+" : "";
+      return `<span class="delta ${improved ? "good" : "bad"}">${sign}${rounded}%</span>`;
+    }
+
+    function previousOf(runs) {
+      const map = {};
+      const last = {};
+      [...runs].sort(byDate).forEach((run) => {
+        map[run.id] = last[run.kind] || null;
+        last[run.kind] = run;
+      });
+      return map;
+    }
+
+    function tabs() {
+      return `<nav class="tabs">${TABS.map(([id, label]) =>
+        `<button type="button" data-tab="${id}" aria-selected="${state.tab === id}">${label}</button>`
+      ).join("")}</nav>`;
+    }
+
+    function dateStrip(runs, kind) {
+      if (!runs.length) return "";
+      const current = selected(runs, kind);
+      return `<div class="dates">${[...runs].sort(byDate).map((run) =>
+        `<button type="button" data-kind="${esc(kind)}" data-run="${esc(run.id)}" aria-pressed="${run.id === current.id}">${esc(when(run.started_at))}</button>`
+      ).join("")}</div>`;
+    }
+
+    function selected(runs, kind) {
+      const ordered = [...runs].sort(byDate);
+      const wanted = state.picked[kind];
+      return ordered.find((run) => run.id === wanted) || ordered[ordered.length - 1];
+    }
+
+    function lineChart(series, yLabel, caption) {
+      const points = series.flatMap((item) => item.points);
+      if (points.length < 2) return "";
+      const width = 720;
+      const height = 200;
+      const padL = 48;
+      const padR = 12;
+      const padT = 16;
+      const padB = 28;
+      const plotW = width - padL - padR;
+      const plotH = height - padT - padB;
+      const ys = points.map((point) => point.y);
+      const yLo = Math.min(...ys);
+      const yHi = Math.max(...ys);
+      const span = (yHi - yLo) || 1;
+      const min = yLo - span * 0.12;
+      const max = yHi + span * 0.12;
+      const labels = [];
+      series.forEach((item) => item.points.forEach((point) => {
+        if (!labels.includes(point.x)) labels.push(point.x);
+      }));
+      const xOf = (label) => {
+        const index = Math.max(0, labels.indexOf(label));
+        const denom = Math.max(1, labels.length - 1);
+        return padL + (index / denom) * plotW;
+      };
+      const yOf = (value) => padT + (1 - (value - min) / (max - min)) * plotH;
+      const paths = series.map((item) => {
+        const path = item.points.map((point, index) =>
+          `${index ? "L" : "M"}${xOf(point.x).toFixed(1)},${yOf(point.y).toFixed(1)}`
+        ).join(" ");
+        const dots = item.points.map((point) =>
+          `<circle cx="${xOf(point.x).toFixed(1)}" cy="${yOf(point.y).toFixed(1)}" r="3" fill="${item.color}"/>`
+        ).join("");
+        return `<path d="${path}" fill="none" stroke="${item.color}" stroke-width="2"/>${dots}`;
+      }).join("");
+      const xLabels = labels.filter((_, index) => labels.length <= 6 || index === 0 || index === labels.length - 1 || index % Math.ceil(labels.length / 6) === 0);
+      return `<svg class="trace" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(yLabel)}">
+        <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="#e6e6e3"/>
+        ${paths}
+        <text x="4" y="14" fill="#6d6d6d" font-size="11">${esc(yLabel)}</text>
+        <text x="${padL}" y="${height - 8}" fill="#6d6d6d" font-size="11">${esc(xLabels[0] || "")}</text>
+        <text x="${padL + plotW}" y="${height - 8}" text-anchor="end" fill="#6d6d6d" font-size="11">${esc(xLabels[xLabels.length - 1] || "")}</text>
+      </svg>
+      <div class="legend">${series.map((item) => `<span><i class="swatch" style="background:${item.color}"></i>${esc(item.name)}</span>`).join("")}</div>
+      <p class="note">${caption}</p>`;
+    }
+
+    function powerChart(device) {
+      const points = ((device && device.series) || []).filter((point) => typeof point.t_s === "number");
+      if (points.length < 2) return "";
+      const width = 720;
+      const height = 200;
+      const padL = 46;
+      const padR = 46;
+      const padT = 16;
+      const padB = 28;
+      const plotW = width - padL - padR;
+      const plotH = height - padT - padB;
+      const tMax = Math.max(...points.map((point) => point.t_s), 1);
+      const powers = points.map((point) => point.power_w).filter((value) => typeof value === "number");
+      const temps = points.map((point) => point.temp_c).filter((value) => typeof value === "number");
+      const domain = (lo, hi) => {
+        const span = (hi - lo) || 1;
+        return [lo - span * 0.18, hi + span * 0.18];
+      };
+      const pLo = powers.length ? Math.min(...powers) : 0;
+      const pHi = powers.length ? Math.max(...powers) : 1;
+      const cLo = temps.length ? Math.min(...temps) : 0;
+      const cHi = temps.length ? Math.max(...temps) : 1;
+      const [pMin, pMax] = domain(pLo, pHi);
+      const [cMin, cMax] = domain(cLo, cHi);
+      const xOf = (t) => padL + (t / tMax) * plotW;
+      const yOf = (value, min, max) => padT + (1 - (value - min) / ((max - min) || 1)) * plotH;
+      const pathFor = (key, min, max) => {
+        let drawing = false;
+        let path = "";
+        points.forEach((point) => {
+          if (typeof point[key] !== "number") {
+            drawing = false;
+            return;
+          }
+          path += `${drawing ? "L" : "M"}${xOf(point.t_s).toFixed(1)},${yOf(point[key], min, max).toFixed(1)} `;
+          drawing = true;
+        });
+        return path.trim();
+      };
+      const marks = ((device && device.marks) || []).filter((mark) => typeof mark.t_s === "number").map((mark) => {
+        const x = xOf(Math.max(0, Math.min(mark.t_s, tMax)));
+        return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${padT}" y2="${padT + plotH}" stroke="#8a5a12" stroke-dasharray="3 3"/>`;
+      }).join("");
+      return `<svg class="trace" viewBox="0 0 ${width} ${height}" role="img" aria-label="Power and temperature during the run">
+        <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="#e6e6e3"/>
+        <path d="${pathFor("power_w", pMin, pMax)}" fill="none" stroke="#1b7f4e" stroke-width="2"/>
+        <path d="${pathFor("temp_c", cMin, cMax)}" fill="none" stroke="#2c6490" stroke-width="2"/>
+        ${marks}
+        <text x="${padL}" y="12" fill="#6d6d6d" font-size="11">${num(pHi, 1)} W</text>
+        <text x="${width - 8}" y="12" text-anchor="end" fill="#6d6d6d" font-size="11">${num(cHi, 1)} °C</text>
+        <text x="${padL}" y="${height - 8}" fill="#6d6d6d" font-size="11">0s</text>
+        <text x="${padL + plotW}" y="${height - 8}" text-anchor="end" fill="#6d6d6d" font-size="11">${num(tMax, 0)}s</text>
+      </svg>
+      <div class="legend"><span><i class="swatch" style="background:#1b7f4e"></i>power</span><span><i class="swatch" style="background:#2c6490"></i>temperature</span></div>
+      <p class="note">Power (W) and temperature (°C) sampled about every ${num((device && device.interval_s) || 1, 0)}s for this run. Source: vcgencmd rail power and measure_temp.</p>`;
+    }
+
+    function deviceFacts(device) {
+      if (!device) return "";
+      const during = device.throttled_during || [];
+      const since = device.throttled_since_boot || [];
+      const throttle = during.length
+        ? `${device.throttled || ""} during run: ${during.join(", ")}`
+        : (since.length ? `${device.throttled || ""} since boot: ${since.join(", ")}` : "—");
+      return `<p class="note">Peak RSS ${bytes(device.peak_memory_bytes)} · energy ${joules(device.energy_j)} · temp max ${celsius(device.temp_c_max)} · ${esc(throttle)}</p>`;
+    }
+
+    function sessionTable(run) {
+      const sessions = run.sessions || [];
+      if (!sessions.length) return "<p class='empty'>No harness sessions in this run.</p>";
+      const rows = sessions.map((session) => {
+        const sessionTurns = session.turns || [];
+        const body = sessionTurns.map((turn) => {
+          const ok = (turn.call_validity || []).filter((item) => item.ok).length;
+          const total = (turn.call_validity || []).length;
+          return `<tr>
+            <td>${turn.turn_index ?? "—"}</td>
+            <td class="num">${turn.prompt_tokens ?? "—"}</td>
+            <td class="num">${ms(turn.prefill_ms)}</td>
+            <td class="num">${ms(turn.decode_ms)}</td>
+            <td class="num">${ms(turn.tool_ms)}</td>
+            <td class="num">${total ? `${ok}/${total}` : "—"}</td>
+          </tr>`;
+        }).join("");
         return `<tr>
-          <td>${dash(turn.turn_index)}</td>
-          <td class="num">${dash(turn.prompt_tokens)}</td>
-          <td class="num">${dash(turn.completion_tokens)}</td>
-          <td class="num">${ms(turn.prefill_ms)}</td>
-          <td class="num">${ms(turn.decode_ms)}</td>
-          <td class="num">${ms(turn.tool_ms)}</td>
-          <td class="num">${total ? `${ok}/${total}` : "—"}</td>
+          <td><code>${esc(session.task_id)}</code></td>
+          <td>${session.success === true ? '<span class="good">yes</span>' : session.success === false ? '<span class="bad">no</span>' : "n/a"}</td>
+          <td class="num">${session.calls_total ? `${session.calls_ok}/${session.calls_total}` : "—"}</td>
+          <td class="num">${sessionTurns.length}</td>
+          <td class="num">${ms(sessionTurns.reduce((sum, turn) => sum + (turn.prefill_ms || 0), 0))}</td>
+          <td class="num">${ms(sessionTurns.reduce((sum, turn) => sum + (turn.decode_ms || 0), 0))}</td>
+        </tr>
+        <tr><td colspan="6"><details><summary>Turns</summary>
+          <table><thead><tr><th>Turn</th><th class="num">Prompt</th><th class="num">Prefill</th><th class="num">Decode</th><th class="num">Tool</th><th class="num">Calls</th></tr></thead><tbody>${body}</tbody></table>
+        </details></td></tr>`;
+      }).join("");
+      return `<table><thead><tr><th>Task</th><th>Success</th><th class="num">Calls</th><th class="num">Turns</th><th class="num">Prefill</th><th class="num">Decode</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+
+    function sweepBars(run) {
+      const rows = (run.characterization && run.characterization.measurements) || [];
+      if (!rows.length) return "<p class='empty'>No sweep measurements in this run.</p>";
+      const max = Math.max(1, ...rows.flatMap((row) => [row.prompt_per_second || 0, row.predicted_per_second || 0]));
+      const bars = rows.map((row) => `<div class="bar-row"><div>${row.prompt_n || row.requested_tokens_approx || "?"} tok</div><div>
+        <div class="track"><div class="fill prefill" style="width:${((row.prompt_per_second || 0) / max) * 100}%"><span>${toks(row.prompt_per_second)}</span></div></div>
+        <div class="track" style="margin-top:4px"><div class="fill decode" style="width:${((row.predicted_per_second || 0) / max) * 100}%"><span>${toks(row.predicted_per_second)}</span></div></div>
+      </div></div>`).join("");
+      return `${bars}
+        <div class="legend"><span><i class="swatch" style="background:#1b7f4e"></i>prefill</span><span><i class="swatch" style="background:#2c6490"></i>decode</span></div>
+        <p class="note">Prefill and decode throughput by prompt length. Source: llama-server timings, cache_prompt false.</p>`;
+    }
+
+    function sweepCompare(runs) {
+      const ordered = [...runs].sort(byDate);
+      if (ordered.length < 2) return "";
+      const lengths = [];
+      ordered.forEach((run) => ((run.characterization && run.characterization.measurements) || []).forEach((row) => {
+        if (!lengths.includes(row.requested_tokens_approx)) lengths.push(row.requested_tokens_approx);
+      }));
+      lengths.sort((a, b) => a - b);
+      const header = lengths.map((length) => `<th class="num">${length} decode</th>`).join("");
+      let previous = null;
+      const body = ordered.map((run) => {
+        const cells = lengths.map((length) => {
+          const row = ((run.characterization && run.characterization.measurements) || []).find((item) => item.requested_tokens_approx === length);
+          const value = row ? row.predicted_per_second : null;
+          const priorRow = previous && ((previous.characterization && previous.characterization.measurements) || []).find((item) => item.requested_tokens_approx === length);
+          const prior = priorRow ? priorRow.predicted_per_second : null;
+          return `<td class="num">${toks(value)}${delta(value, prior, false)}</td>`;
+        }).join("");
+        previous = run;
+        return `<tr><td>${esc(when(run.started_at))}</td>${cells}</tr>`;
+      }).join("");
+      return `<h2>Decode throughput across dates</h2>
+        <table><thead><tr><th>Run</th>${header}</tr></thead><tbody>${body}</tbody></table>
+        <p class="note">Higher tok/s is better. The percent is versus the previous sweep at the same prompt length.</p>`;
+    }
+
+    function latencyTrend(runs) {
+      const kinds = [
+        ["long_task", "Long task", "#1b7f4e"],
+        ["held_out", "Held-out", "#2c6490"],
+      ];
+      const series = kinds.map(([kind, name, color]) => ({
+        name,
+        color,
+        points: runs.filter((run) => run.kind === kind).sort(byDate).flatMap((run) => {
+          const y = medianPrefill(run);
+          return typeof y === "number" ? [{ x: when(run.started_at), y }] : [];
+        }),
+      })).filter((item) => item.points.length);
+      return lineChart(series, "Prefill (ms)", "Median prefill by run date. Lower is better. Source: harness turn timings.");
+    }
+
+    function kindTrend(runs, pick) {
+      const points = [...runs].sort(byDate).flatMap((run) => {
+        const y = pick(run);
+        return typeof y === "number" ? [{ x: when(run.started_at), y }] : [];
+      });
+      return lineChart([{ name: "Median prefill", color: "#1b7f4e", points }], "Median prefill (ms)", "Same benchmark on later dates. Lower is better.");
+    }
+
+    function overview(runs, prior) {
+      const chart = latencyTrend(runs);
+      const rows = [...runs].sort(byDate).reverse().map((run) => {
+        const previous = prior[run.id];
+        const calls = callStats(run);
+        return `<tr>
+          <td>${esc(when(run.started_at))}</td>
+          <td>${esc(KIND[run.kind] || run.kind)}</td>
+          <td class="num">${calls.total ? `${calls.ok}/${calls.total}` : "—"}${delta(calls.total ? calls.ok / calls.total : null, previous && callStats(previous).total ? callStats(previous).ok / callStats(previous).total : null, false)}</td>
+          <td class="num">${ms(medianPrefill(run))}${delta(medianPrefill(run), previous && medianPrefill(previous), true)}</td>
+          <td class="num">${ms(medianDecode(run))}${delta(medianDecode(run), previous && medianDecode(previous), true)}</td>
+          <td class="num">${joules(run.device && run.device.energy_j)}</td>
+          <td class="num">${celsius(run.device && run.device.temp_c_max)}</td>
         </tr>`;
       }).join("");
-      return `<table>
-        <thead><tr>
-          <th>Turn</th><th class="num">Prompt</th><th class="num">Completion</th>
-          <th class="num">Prefill</th><th class="num">Decode</th><th class="num">Tool</th><th class="num">Calls</th>
-        </tr></thead>
-        <tbody>${body}</tbody>
-      </table>`;
+      return `${chart ? `<section class="panel"><h2>Prefill over time</h2>${chart}</section>` : ""}
+        <section class="panel"><h2>Every recorded run</h2>
+          <table><thead><tr><th>Date</th><th>Tab</th><th class="num">Calls</th><th class="num">Prefill</th><th class="num">Decode</th><th class="num">Energy</th><th class="num">Temp max</th></tr></thead><tbody>${rows}</tbody></table>
+          <p class="note">Percentages compare with the previous run of the same kind. Green means the later run improved.</p>
+        </section>`;
     }
 
-    function sweepChart(rows) {
-      if (!rows.length) {
-        return "<p class='empty'>No sweep yet. Run the characterization script, then export.</p>";
-      }
-      const max = Math.max(
-        1,
-        ...rows.flatMap((row) => [row.prompt_per_second || 0, row.predicted_per_second || 0]),
-      );
-      const bars = rows.map((row) => {
-        const prefill = row.prompt_per_second || 0;
-        const decode = row.predicted_per_second || 0;
-        const label = row.prompt_n || row.requested_tokens_approx || "?";
-        return `<div class="bar-row">
-          <div class="bar-label">${label} tok</div>
-          <div>
-            <div class="track"><div class="fill prefill" style="width:${(prefill / max) * 100}%"><span>${toks(row.prompt_per_second)}</span></div></div>
-            <div class="track" style="margin-top:4px"><div class="fill decode" style="width:${(decode / max) * 100}%"><span>${toks(row.predicted_per_second)}</span></div></div>
-          </div>
-        </div>`;
-      }).join("");
-      const table = rows.map((row) => `<tr>
-        <td class="num">${dash(row.requested_tokens_approx)}</td>
-        <td class="num">${dash(row.prompt_n)}</td>
-        <td class="num">${ms(row.prompt_ms)}</td>
-        <td class="num">${toks(row.prompt_per_second)}</td>
-        <td class="num">${ms(row.predicted_ms)}</td>
-        <td class="num">${toks(row.predicted_per_second)}</td>
-        <td class="num">${bytes(row.peak_memory_bytes)}</td>
-        <td class="num">${joules(row.energy_j)}</td>
-        <td class="num">${celsius(row.temp_c)}</td>
-        <td>${dash(row.throttled)}</td>
-      </tr>`).join("");
-      return `
-        <div class="legend">
-          <span><i class="swatch prefill"></i>prefill</span>
-          <span><i class="swatch decode"></i>decode</span>
-        </div>
-        ${bars}
-        <table>
-          <thead><tr>
-            <th class="num">Asked</th><th class="num">Prompt</th><th class="num">Prefill</th><th class="num">Prefill rate</th>
-            <th class="num">Decode</th><th class="num">Decode rate</th><th class="num">Memory</th><th class="num">Energy</th>
-            <th class="num">Temp</th><th>Throttled</th>
-          </tr></thead>
-          <tbody>${table}</tbody>
-        </table>
-        <p class="note">Bars are prefill and decode with prefix cache off. Per-row memory, energy, and temperature stay empty; the run-level sample is in the panel beside this chart.</p>`;
-    }
-
-    function devicePanel(runs) {
+    function detail(runs, kind) {
       if (!runs.length) {
-        return `<p class="empty">No device sample yet.</p>
-          <p class="note">Wrap a benchmark with <code>./scripts/sample_device.sh</code>. Peak RSS is recorded anywhere <code>llama-server</code> is running. Energy, temperature, and <code>vcgencmd get_throttled</code> are recorded only on the Pi.</p>`;
+        return `<section class="panel"><p class="empty">No ${esc(KIND[kind] || kind)} runs yet.</p></section>`;
       }
-      const cards = runs.map((run, index) => {
-        const hostDebug = run.report_as !== "device";
-        const title = hostDebug ? "Host debug sample" : "Pi measurement";
-        const active = (run.throttled_now || []).length > 0;
-        const badge = hostDebug
-          ? '<span class="pill wait">not the reported baseline</span>'
-          : (active
-            ? '<span class="pill bad">throttled</span>'
-            : '<span class="pill ok">device</span>');
-        const command = (run.command && run.command.length) ? run.command.join(" ") : "spot sample";
-        return `<div class="metric"><span>${title} ${index + 1}</span>${badge}</div>
-          <div class="metric"><span>Platform</span><strong>${dash(run.platform)}</strong></div>
-          <div class="metric"><span>llama-server peak RSS</span><strong>${bytes(run.peak_memory_bytes)}</strong></div>
-          <div class="metric"><span>Energy</span><strong>${joules(run.energy_j)}</strong></div>
-          <div class="metric"><span>Temp max</span><strong>${celsius(run.temp_c_max)}</strong></div>
-          <div class="metric"><span>Throttled</span><strong>${throttleLabel(run)}</strong></div>
-          <div class="metric"><span>Window</span><strong>${num(run.duration_s, 1)} s</strong></div>
-          <p class="note">Command: <code>${dash(command)}</code></p>
-          ${run.notes ? `<p class="note">${run.notes}</p>` : ""}`;
-      }).join("<hr style='border:0;border-top:1px solid var(--line);margin:12px 0'>");
-      return cards;
-    }
-
-    function throttleLabel(run) {
-      const now = run.throttled_now || [];
-      const since = run.throttled_since_boot || [];
-      if (!run.throttled && !now.length && !since.length) return "—";
-      if (now.length) return `${run.throttled} now: ${now.join(", ")}`;
-      if (since.length) return `${run.throttled} since boot: ${since.join(", ")}`;
-      return dash(run.throttled);
-    }
-
-    function sessionTable(sessions) {
-      return sessions.map((session) => {
-        const turns = session.turns || [];
-        const prefill = sum(turns.map((turn) => turn.prefill_ms || 0));
-        const decode = sum(turns.map((turn) => turn.decode_ms || 0));
-        const tool = sum(turns.map((turn) => turn.tool_ms || 0));
-        const wall = sum(turns.map((turn) => turn.wall_ms || 0));
-        return `<tr>
-          <td>${dash(session.split)}</td>
-          <td><code>${dash(session.task_id)}</code></td>
-          <td>${pill(session.success)}</td>
-          <td class="num">${session.calls_total ? `${session.calls_ok}/${session.calls_total}` : "—"}</td>
-          <td class="num">${turns.length}</td>
-          <td class="num">${ms(prefill)}</td>
-          <td class="num">${ms(decode)}</td>
-          <td class="num">${ms(tool)}</td>
-          <td class="num">${ms(wall)}</td>
-        </tr>
-        <tr><td colspan="9">${session.error ? `<p class="note">${session.error}</p>` : ""}
-          <details class="turn"><summary>Turns</summary>${turnRows(turns)}</details>
-        </td></tr>`;
-      }).join("");
-    }
-
-    function steps() {
+      const run = selected(runs, kind);
+      const trend = kind === "sweep" ? "" : kindTrend(runs, medianPrefill);
+      const body = kind === "sweep"
+        ? `${sweepBars(run)}${deviceFacts(run.device)}<div style="height:16px"></div>${sweepCompare(runs)}`
+        : `${sessionTable(run)}${deviceFacts(run.device)}`;
+      const command = (run.command || []).join(" ");
       return `<section class="panel">
-        <h2>Record a run and update this page</h2>
-        <p class="note">Leave <code>./scripts/start_server.sh</code> running in the first terminal. In a second terminal:</p>
-        <ol class="steps">
-          <li><code>source .venv/bin/activate</code></li>
-          <li><code>./scripts/sample_device.sh -- ./scripts/run_harness.sh --split long_extra --task-id long_extra_03_fund_after_dump</code></li>
-          <li><code>./scripts/sample_device.sh -- ./scripts/run_harness.sh --split test --limit 3</code></li>
-          <li><code>./scripts/sample_device.sh -- ./scripts/characterize_baseline.sh --lengths 512,2048,4096</code></li>
-          <li><code>./scripts/export_dashboard.sh</code></li>
-          <li>Commit <code>docs/data/dashboard.json</code> and push. This page reads that file.</li>
-        </ol>
-        <p class="note">This records call validity, prefill and decode time, and llama-server peak RSS. On a Pi, <code>vcgencmd</code> also integrates rail power and records temperature. Flag a run when <code>throttled_now</code> is not empty. A value such as <code>0x80000</code> only means the soft temperature limit was hit earlier since boot.</p>
+        ${dateStrip(runs, kind)}
+        <h2>${esc(when(run.started_at))}</h2>
+        ${command ? `<p class="note"><code>${esc(command)}</code></p>` : ""}
+        ${body}
+        ${trend ? `<div style="height:8px"></div>${trend}` : ""}
+        ${powerChart(run.device)}
       </section>`;
     }
 
-    function render(data) {
-      const baseline = data.baseline || {};
-      const sessions = data.sessions || [];
-      const rows = (data.characterization && data.characterization.measurements) || [];
-      const runs = data.device_runs || [];
-      const turns = sessions.flatMap((session) => session.turns || []);
-      const scored = sessions.filter((session) => session.success === true || session.success === false);
-      const successes = scored.filter((session) => session.success).length;
-      const callsOk = sum(sessions.map((session) => session.calls_ok || 0));
-      const callsTotal = sum(sessions.map((session) => session.calls_total || 0));
-      const server = data.server || {};
-
-      $("kicker").textContent = data.project ? `${data.project.course} · ${data.project.track}` : "AI624 · Project A1";
-      $("title").textContent = data.project ? data.project.name : "Baseline dashboard";
-      $("subtitle").textContent = data.updated_at
-        ? `Snapshot ${data.updated_at}`
-        : "No snapshot yet";
-      $("chips").innerHTML = [
-        chip("model", `${baseline.model_family || "Qwen3"}-${baseline.model_size || "1.7B"}`),
-        chip("weights", server.model_ftype || baseline.gguf || "BF16"),
-        chip("context", server.n_ctx || baseline.context_size),
-        chip("cache_prompt", String(baseline.cache_prompt)),
-        chip("threads", baseline.threads),
-        chip("llama.cpp", (baseline.llama_cpp_commit || "").slice(0, 10) || null),
-        chip("build", server.build_info || null),
-      ].join("");
-
-      $("main").innerHTML = `
-        <section class="cards">
-          <article class="card"><div class="label">Sessions</div><div class="value">${sessions.length}</div><div class="hint">${scored.length ? `${successes}/${scored.length} succeeded` : "none scored"}</div></article>
-          <article class="card"><div class="label">Call validity</div><div class="value">${callsTotal ? `${callsOk}/${callsTotal}` : "—"}</div><div class="hint">schema-valid tool calls</div></article>
-          <article class="card"><div class="label">Median prefill</div><div class="value">${ms(median(turns.map((turn) => turn.prefill_ms)))}</div><div class="hint">per model turn</div></article>
-          <article class="card"><div class="label">Median decode</div><div class="value">${ms(median(turns.map((turn) => turn.decode_ms)))}</div><div class="hint">per model turn</div></article>
-        </section>
-        <section class="split">
-          <article class="panel">
-            <h2>Prefill / decode sweep</h2>
-            ${sweepChart(rows)}
-          </article>
-          <article class="panel">
-            <h2>Memory, energy, thermal</h2>
-            ${devicePanel(runs)}
-          </article>
-        </section>
-        <section class="panel">
-          <h2>Harness sessions</h2>
-          ${sessions.length ? `<table>
-            <thead><tr>
-              <th>Split</th><th>Task</th><th>Success</th><th class="num">Calls</th><th class="num">Turns</th>
-              <th class="num">Prefill</th><th class="num">Decode</th><th class="num">Tool</th><th class="num">Wall</th>
-            </tr></thead>
-            <tbody>${sessionTable(sessions)}</tbody>
-          </table>` : "<p class='empty'>No harness sessions yet.</p>"}
-        </section>
-        ${steps()}
-        <footer>Published from <code>docs/data/dashboard.json</code>. Raw logs stay in <code>results/baseline/</code> and are not committed.</footer>`;
+    function steps() {
+      return `<section class="panel"><h2>Record the next run</h2>
+        <p class="note">Leave <code>./scripts/start_server.sh</code> running, then in a second terminal run <code>./scripts/run_baseline.sh</code>. It records the long task, the held-out sample, and the sweep, with power and temperature beside each one, and writes <code>docs/data/dashboard.json</code>.</p>
+        <p class="note">Commit that file and push to update this page. Run the script again after a change; each run is kept by date.</p></section>`;
     }
+
+    function render(data) {
+      window.__data = data;
+      const runs = Array.isArray(data.runs) ? data.runs : [];
+      const baseline = data.baseline || {};
+      const server = data.server || {};
+      $("kicker").textContent = data.project ? `${data.project.course} · ${data.project.track}` : "AI624 · Project A1";
+      $("title").textContent = data.project ? data.project.name : "Baseline";
+      $("subtitle").textContent = runs.length
+        ? `${runs.length} run${runs.length === 1 ? "" : "s"} · updated ${when(data.updated_at)}`
+        : "No dated runs yet";
+      $("chips").innerHTML = [
+        ["model", `${baseline.model_family || "Qwen3"}-${baseline.model_size || "1.7B"}`],
+        ["weights", server.model_ftype || "BF16"],
+        ["context", server.n_ctx || baseline.context_size],
+        ["cache_prompt", String(baseline.cache_prompt)],
+      ].map(([label, value]) => `<span class="chip">${label} <strong>${esc(value)}</strong></span>`).join("");
+
+      const prior = previousOf(runs);
+      let body;
+      if (!runs.length) body = steps();
+      else if (state.tab === "overview") body = overview(runs, prior) + steps();
+      else body = detail(runs.filter((run) => run.kind === state.tab), state.tab);
+      $("main").innerHTML = `${tabs()}${body}<footer>Each run is kept. Export merges <code>results/baseline/history/</code> into <code>docs/data/dashboard.json</code>.</footer>`;
+    }
+
+    $("main").addEventListener("click", (event) => {
+      const tab = event.target.closest("[data-tab]");
+      if (tab) {
+        state.tab = tab.dataset.tab;
+        history.replaceState(null, "", `#${state.tab}`);
+        render(window.__data);
+        return;
+      }
+      const pick = event.target.closest("[data-run]");
+      if (pick && window.__data) {
+        state.picked[pick.dataset.kind] = pick.dataset.run;
+        render(window.__data);
+      }
+    });
 
     fetch("data/dashboard.json", { cache: "no-store" })
       .then((response) => {
@@ -405,7 +528,7 @@
       })
       .then(render)
       .catch((error) => {
-        $("subtitle").textContent = `Could not load data/dashboard.json (${error.message}). Serve this folder over HTTP.`;
+        $("subtitle").textContent = `Could not load data/dashboard.json (${error.message}).`;
         $("main").innerHTML = steps();
       });
   </script>

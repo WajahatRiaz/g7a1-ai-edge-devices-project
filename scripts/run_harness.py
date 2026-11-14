@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -108,7 +109,12 @@ def main() -> None:
         flush=True,
     )
 
-    out_dir = ROOT / cfg["metrics_dir"] / args.split
+    metrics_root = (
+        Path(os.environ["A1_RESULTS_DIR"])
+        if os.environ.get("A1_RESULTS_DIR")
+        else ROOT / cfg["metrics_dir"]
+    )
+    out_dir = metrics_root / args.split
     out_dir.mkdir(parents=True, exist_ok=True)
     summary = []
     for task in tasks:
