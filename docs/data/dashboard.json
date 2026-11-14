@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "updated_at": "2026-11-14T12:07:20.434239+00:00",
+  "project": {
+    "name": "Long Context Tool-Calling Agent",
+    "course": "AI624 \u00b7 AI on Edge Devices \u00b7 Fall 2026",
+    "track": "Track A \u2014 Project A1"
+  },
+  "baseline": {
+    "name": "baseline_bf16_stateless",
+    "model_family": "Qwen3",
+    "model_size": "1.7B",
+    "gguf": "qwen3-1.7b-bf16.gguf",
+    "context_size": 8192,
+    "threads": 4,
+    "cache_prompt": false,
+    "temperature": 0.0,
+    "schemas_in_system_prompt": true,
+    "llama_cpp_commit": "d1eb0debaddc9f9246ee884653ee3a7764f60b77"
+  },
+  "server": {
+    "model_file": "qwen3-1.7b-bf16.gguf",
+    "model_ftype": "BF16",
+    "n_ctx": 8192,
+    "total_slots": 4,
+    "build_info": "b1-d1eb0de"
+  },
+  "sessions": [],
+  "characterization": null,
+  "device_runs": []
+}

@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A1 baseline dashboard</title>
+  <style>
+    :root {
+      --bg: #f3efe6;
+      --ink: #1c1915;
+      --muted: #5e584e;
+      --line: #ddd4c4;
+      --card: #fffdf8;
+      --ok: #1f6b45;
+      --ok-bg: #e5f2ea;
+      --wait: #8a5a12;
+      --wait-bg: #f8efdc;
+      --bad: #8d2f2f;
+      --bad-bg: #f8e8e6;
+      --prefill: #1f6b45;
+      --decode: #2f5f86;
+      --shadow: 0 1px 0 rgba(28, 25, 21, 0.04);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+    header, main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; }
+    header { padding: 28px 0 8px; }
+    .kicker {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: 28px; font-weight: 650; letter-spacing: -0.02em; }
+    h2 { margin: 0 0 12px; font-size: 16px; font-weight: 650; }
+    .sub { margin: 6px 0 0; color: var(--muted); }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
+    .chip {
+      border: 1px solid var(--line);
+      background: var(--card);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .chip strong { color: var(--ink); font-weight: 650; }
+    main { display: grid; gap: 16px; padding-bottom: 48px; }
+    .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .card, .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+    }
+    .card { padding: 14px 16px; }
+    .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .card .value { margin-top: 4px; font-size: 26px; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+    .card .hint { margin-top: 2px; color: var(--muted); font-size: 12px; }
+    .split { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 12px; }
+    .panel { padding: 16px; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    th, td { text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; font-weight: 650; }
+    tr:last-child td { border-bottom: 0; }
+    .num { text-align: right; }
+    .bar-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; align-items: center; margin: 8px 0; }
+    .bar-label { font-size: 12px; color: var(--muted); }
+    .track { position: relative; height: 22px; background: #f3efe6; border-radius: 6px; overflow: hidden; }
+    .fill { height: 100%; border-radius: 6px; }
+    .fill span {
+      position: absolute;
+      right: 8px;
+      top: 3px;
+      font-size: 12px;
+      color: var(--ink);
+    }
+    .fill.prefill { background: rgba(31, 107, 69, 0.28); }
+    .fill.decode { background: rgba(47, 95, 134, 0.28); margin-top: 0; }
+    .legend { display: flex; gap: 14px; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+    .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+    .swatch.prefill { background: var(--prefill); }
+    .swatch.decode { background: var(--decode); }
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .pill.ok { background: var(--ok-bg); color: var(--ok); }
+    .pill.wait { background: var(--wait-bg); color: var(--wait); }
+    .pill.bad { background: var(--bad-bg); color: var(--bad); }
+    .metric { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+    .metric:last-child { border-bottom: 0; }
+    .metric span { color: var(--muted); }
+    .note { margin: 10px 0 0; color: var(--muted); font-size: 13px; }
+    details.turn { margin-top: 6px; }
+    summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+    pre {
+      margin: 8px 0 0;
+      padding: 10px;
+      overflow: auto;
+      background: #f7f3eb;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    ol.steps { margin: 8px 0 0; padding-left: 18px; }
+    ol.steps li { margin: 6px 0; }
+    code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
+    .empty { color: var(--muted); }
+    footer { color: var(--muted); font-size: 12px; padding-bottom: 8px; }
+    @media (max-width: 800px) {
+      .cards, .split { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <p class="kicker" id="kicker">AI624 · Project A1</p>
+    <h1 id="title">Baseline dashboard</h1>
+    <p class="sub" id="subtitle">Waiting for docs/data/dashboard.json</p>
+    <div class="chips" id="chips"></div>
+  </header>
+  <main id="main"></main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function dash(value) {
+      return value === null || value === undefined || value === "" ? "—" : value;
+    }
+
+    function num(value, digits = 0) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
+      return Number(value).toLocaleString(undefined, {
+        maximumFractionDigits: digits,
+        minimumFractionDigits: digits,
+      });
+    }
+
+    function ms(value) {
+      if (value === null || value === undefined) return "—";
+      return `${num(value, value >= 100 ? 0 : 1)} ms`;
+    }
+
+    function toks(value) {
+      if (value === null || value === undefined) return "—";
+      return `${num(value, 1)} tok/s`;
+    }
+
+    function bytes(value) {
+      if (value === null || value === undefined) return "—";
+      const mib = Number(value) / (1024 * 1024);
+      return `${num(mib, mib >= 100 ? 0 : 1)} MiB`;
+    }
+
+    function joules(value) {
+      if (value === null || value === undefined) return "—";
+      return `${num(value, 2)} J`;
+    }
+
+    function celsius(value) {
+      if (value === null || value === undefined) return "—";
+      return `${num(value, 1)} °C`;
+    }
+
+    function pill(ok) {
+      if (ok === true) return '<span class="pill ok">yes</span>';
+      if (ok === false) return '<span class="pill bad">no</span>';
+      return '<span class="pill wait">n/a</span>';
+    }
+
+    function median(values) {
+      const nums = values.filter((v) => typeof v === "number" && !Number.isNaN(v)).sort((a, b) => a - b);
+      if (!nums.length) return null;
+      const mid = Math.floor(nums.length / 2);
+      return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+    }
+
+    function sum(values) {
+      return values.reduce((acc, value) => acc + value, 0);
+    }
+
+    function chip(label, value) {
+      return `<span class="chip">${label} <strong>${dash(value)}</strong></span>`;
+    }
+
+    function turnRows(turns) {
+      if (!turns || !turns.length) return "<p class='empty'>No turns recorded.</p>";
+      const body = turns.map((turn) => {
+        const ok = (turn.call_validity || []).filter((item) => item.ok).length;
+        const total = (turn.call_validity || []).length;
+        return `<tr>
+          <td>${dash(turn.turn_index)}</td>
+          <td class="num">${dash(turn.prompt_tokens)}</td>
+          <td class="num">${dash(turn.completion_tokens)}</td>
+          <td class="num">${ms(turn.prefill_ms)}</td>
+          <td class="num">${ms(turn.decode_ms)}</td>
+          <td class="num">${ms(turn.tool_ms)}</td>
+          <td class="num">${total ? `${ok}/${total}` : "—"}</td>
+        </tr>`;
+      }).join("");
+      return `<table>
+        <thead><tr>
+          <th>Turn</th><th class="num">Prompt</th><th class="num">Completion</th>
+          <th class="num">Prefill</th><th class="num">Decode</th><th class="num">Tool</th><th class="num">Calls</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+      </table>`;
+    }
+
+    function sweepChart(rows) {
+      if (!rows.length) {
+        return "<p class='empty'>No sweep yet. Run the characterization script, then export.</p>";
+      }
+      const max = Math.max(
+        1,
+        ...rows.flatMap((row) => [row.prompt_per_second || 0, row.predicted_per_second || 0]),
+      );
+      const bars = rows.map((row) => {
+        const prefill = row.prompt_per_second || 0;
+        const decode = row.predicted_per_second || 0;
+        const label = row.prompt_n || row.requested_tokens_approx || "?";
+        return `<div class="bar-row">
+          <div class="bar-label">${label} tok</div>
+          <div>
+            <div class="track"><div class="fill prefill" style="width:${(prefill / max) * 100}%"><span>${toks(row.prompt_per_second)}</span></div></div>
+            <div class="track" style="margin-top:4px"><div class="fill decode" style="width:${(decode / max) * 100}%"><span>${toks(row.predicted_per_second)}</span></div></div>
+          </div>
+        </div>`;
+      }).join("");
+      const table = rows.map((row) => `<tr>
+        <td class="num">${dash(row.requested_tokens_approx)}</td>
+        <td class="num">${dash(row.prompt_n)}</td>
+        <td class="num">${ms(row.prompt_ms)}</td>
+        <td class="num">${toks(row.prompt_per_second)}</td>
+        <td class="num">${ms(row.predicted_ms)}</td>
+        <td class="num">${toks(row.predicted_per_second)}</td>
+        <td class="num">${bytes(row.peak_memory_bytes)}</td>
+        <td class="num">${joules(row.energy_j)}</td>
+        <td class="num">${celsius(row.temp_c)}</td>
+        <td>${dash(row.throttled)}</td>
+      </tr>`).join("");
+      return `
+        <div class="legend">
+          <span><i class="swatch prefill"></i>prefill</span>
+          <span><i class="swatch decode"></i>decode</span>
+        </div>
+        ${bars}
+        <table>
+          <thead><tr>
+            <th class="num">Asked</th><th class="num">Prompt</th><th class="num">Prefill</th><th class="num">Prefill rate</th>
+            <th class="num">Decode</th><th class="num">Decode rate</th><th class="num">Memory</th><th class="num">Energy</th>
+            <th class="num">Temp</th><th>Throttled</th>
+          </tr></thead>
+          <tbody>${table}</tbody>
+        </table>
+        <p class="note">Bars are prefill and decode with prefix cache off. Per-row memory, energy, and temperature stay empty; the run-level sample is in the panel beside this chart.</p>`;
+    }
+
+    function devicePanel(runs) {
+      if (!runs.length) {
+        return `<p class="empty">No device sample yet.</p>
+          <p class="note">Wrap a benchmark with <code>./scripts/sample_device.sh</code>. Peak RSS is recorded anywhere <code>llama-server</code> is running. Energy, temperature, and <code>vcgencmd get_throttled</code> are recorded only on the Pi.</p>`;
+      }
+      const cards = runs.map((run, index) => {
+        const hostDebug = run.report_as !== "device";
+        const title = hostDebug ? "Host debug sample" : "Pi measurement";
+        const active = (run.throttled_now || []).length > 0;
+        const badge = hostDebug
+          ? '<span class="pill wait">not the reported baseline</span>'
+          : (active
+            ? '<span class="pill bad">throttled</span>'
+            : '<span class="pill ok">device</span>');
+        const command = (run.command && run.command.length) ? run.command.join(" ") : "spot sample";
+        return `<div class="metric"><span>${title} ${index + 1}</span>${badge}</div>
+          <div class="metric"><span>Platform</span><strong>${dash(run.platform)}</strong></div>
+          <div class="metric"><span>llama-server peak RSS</span><strong>${bytes(run.peak_memory_bytes)}</strong></div>
+          <div class="metric"><span>Energy</span><strong>${joules(run.energy_j)}</strong></div>
+          <div class="metric"><span>Temp max</span><strong>${celsius(run.temp_c_max)}</strong></div>
+          <div class="metric"><span>Throttled</span><strong>${throttleLabel(run)}</strong></div>
+          <div class="metric"><span>Window</span><strong>${num(run.duration_s, 1)} s</strong></div>
+          <p class="note">Command: <code>${dash(command)}</code></p>
+          ${run.notes ? `<p class="note">${run.notes}</p>` : ""}`;
+      }).join("<hr style='border:0;border-top:1px solid var(--line);margin:12px 0'>");
+      return cards;
+    }
+
+    function throttleLabel(run) {
+      const now = run.throttled_now || [];
+      const since = run.throttled_since_boot || [];
+      if (!run.throttled && !now.length && !since.length) return "—";
+      if (now.length) return `${run.throttled} now: ${now.join(", ")}`;
+      if (since.length) return `${run.throttled} since boot: ${since.join(", ")}`;
+      return dash(run.throttled);
+    }
+
+    function sessionTable(sessions) {
+      return sessions.map((session) => {
+        const turns = session.turns || [];
+        const prefill = sum(turns.map((turn) => turn.prefill_ms || 0));
+        const decode = sum(turns.map((turn) => turn.decode_ms || 0));
+        const tool = sum(turns.map((turn) => turn.tool_ms || 0));
+        const wall = sum(turns.map((turn) => turn.wall_ms || 0));
+        return `<tr>
+          <td>${dash(session.split)}</td>
+          <td><code>${dash(session.task_id)}</code></td>
+          <td>${pill(session.success)}</td>
+          <td class="num">${session.calls_total ? `${session.calls_ok}/${session.calls_total}` : "—"}</td>
+          <td class="num">${turns.length}</td>
+          <td class="num">${ms(prefill)}</td>
+          <td class="num">${ms(decode)}</td>
+          <td class="num">${ms(tool)}</td>
+          <td class="num">${ms(wall)}</td>
+        </tr>
+        <tr><td colspan="9">${session.error ? `<p class="note">${session.error}</p>` : ""}
+          <details class="turn"><summary>Turns</summary>${turnRows(turns)}</details>
+        </td></tr>`;
+      }).join("");
+    }
+
+    function steps() {
+      return `<section class="panel">
+        <h2>Record a run and update this page</h2>
+        <p class="note">Leave <code>./scripts/start_server.sh</code> running in the first terminal. In a second terminal:</p>
+        <ol class="steps">
+          <li><code>source .venv/bin/activate</code></li>
+          <li><code>./scripts/sample_device.sh -- ./scripts/run_harness.sh --split long_extra --task-id long_extra_03_fund_after_dump</code></li>
+          <li><code>./scripts/sample_device.sh -- ./scripts/run_harness.sh --split test --limit 3</code></li>
+          <li><code>./scripts/sample_device.sh -- ./scripts/characterize_baseline.sh --lengths 512,2048,4096</code></li>
+          <li><code>./scripts/export_dashboard.sh</code></li>
+          <li>Commit <code>docs/data/dashboard.json</code> and push. This page reads that file.</li>
+        </ol>
+        <p class="note">This records call validity, prefill and decode time, and llama-server peak RSS. On a Pi, <code>vcgencmd</code> also integrates rail power and records temperature. Flag a run when <code>throttled_now</code> is not empty. A value such as <code>0x80000</code> only means the soft temperature limit was hit earlier since boot.</p>
+      </section>`;
+    }
+
+    function render(data) {
+      const baseline = data.baseline || {};
+      const sessions = data.sessions || [];
+      const rows = (data.characterization && data.characterization.measurements) || [];
+      const runs = data.device_runs || [];
+      const turns = sessions.flatMap((session) => session.turns || []);
+      const scored = sessions.filter((session) => session.success === true || session.success === false);
+      const successes = scored.filter((session) => session.success).length;
+      const callsOk = sum(sessions.map((session) => session.calls_ok || 0));
+      const callsTotal = sum(sessions.map((session) => session.calls_total || 0));
+      const server = data.server || {};
+
+      $("kicker").textContent = data.project ? `${data.project.course} · ${data.project.track}` : "AI624 · Project A1";
+      $("title").textContent = data.project ? data.project.name : "Baseline dashboard";
+      $("subtitle").textContent = data.updated_at
+        ? `Snapshot ${data.updated_at}`
+        : "No snapshot yet";
+      $("chips").innerHTML = [
+        chip("model", `${baseline.model_family || "Qwen3"}-${baseline.model_size || "1.7B"}`),
+        chip("weights", server.model_ftype || baseline.gguf || "BF16"),
+        chip("context", server.n_ctx || baseline.context_size),
+        chip("cache_prompt", String(baseline.cache_prompt)),
+        chip("threads", baseline.threads),
+        chip("llama.cpp", (baseline.llama_cpp_commit || "").slice(0, 10) || null),
+        chip("build", server.build_info || null),
+      ].join("");
+
+      $("main").innerHTML = `
+        <section class="cards">
+          <article class="card"><div class="label">Sessions</div><div class="value">${sessions.length}</div><div class="hint">${scored.length ? `${successes}/${scored.length} succeeded` : "none scored"}</div></article>
+          <article class="card"><div class="label">Call validity</div><div class="value">${callsTotal ? `${callsOk}/${callsTotal}` : "—"}</div><div class="hint">schema-valid tool calls</div></article>
+          <article class="card"><div class="label">Median prefill</div><div class="value">${ms(median(turns.map((turn) => turn.prefill_ms)))}</div><div class="hint">per model turn</div></article>
+          <article class="card"><div class="label">Median decode</div><div class="value">${ms(median(turns.map((turn) => turn.decode_ms)))}</div><div class="hint">per model turn</div></article>
+        </section>
+        <section class="split">
+          <article class="panel">
+            <h2>Prefill / decode sweep</h2>
+            ${sweepChart(rows)}
+          </article>
+          <article class="panel">
+            <h2>Memory, energy, thermal</h2>
+            ${devicePanel(runs)}
+          </article>
+        </section>
+        <section class="panel">
+          <h2>Harness sessions</h2>
+          ${sessions.length ? `<table>
+            <thead><tr>
+              <th>Split</th><th>Task</th><th>Success</th><th class="num">Calls</th><th class="num">Turns</th>
+              <th class="num">Prefill</th><th class="num">Decode</th><th class="num">Tool</th><th class="num">Wall</th>
+            </tr></thead>
+            <tbody>${sessionTable(sessions)}</tbody>
+          </table>` : "<p class='empty'>No harness sessions yet.</p>"}
+        </section>
+        ${steps()}
+        <footer>Published from <code>docs/data/dashboard.json</code>. Raw logs stay in <code>results/baseline/</code> and are not committed.</footer>`;
+    }
+
+    fetch("data/dashboard.json", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then(render)
+      .catch((error) => {
+        $("subtitle").textContent = `Could not load data/dashboard.json (${error.message}). Serve this folder over HTTP.`;
+        $("main").innerHTML = steps();
+      });
+  </script>
+</body>
+</html>
