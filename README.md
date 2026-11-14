@@ -5,6 +5,8 @@ AI624 · AI on Edge Devices · Fall 2026
 
 On-device multi-turn tool calling with Qwen3 through [llama.cpp](https://github.com/ggml-org/llama.cpp) `llama-server`. Sessions grow to tens of thousands of tokens as tool outputs are appended; the agent must still emit a valid call at the end.
 
+**Dashboard:** [wajahatriaz.github.io/g7a1-ai-edge-devices-project](https://wajahatriaz.github.io/g7a1-ai-edge-devices-project/)
+
 ## Table of contents
 
 1. [Overview](#1-overview)
