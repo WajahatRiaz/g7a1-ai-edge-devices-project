@@ -54,6 +54,30 @@ BFCL_PATH="${ROOT}/third_party/gorilla/berkeley-function-call-leaderboard"
 SITE_PACKAGES="$(python -c 'import site; print(site.getsitepackages()[0])')"
 echo "${BFCL_PATH}" > "${SITE_PACKAGES}/a1_bfcl.pth"
 echo "${ROOT}/src" > "${SITE_PACKAGES}/a1_agent_src.pth"
+
+# One file serves the agent and the BFCL checker. Cap the TradingBot filler
+# lists there so long-context dumps stay near the lengths in the manual.
+python - "${BFCL_PATH}/bfcl_eval/eval_checker/multi_turn_eval/func_source_code/long_context.py" <<'PY'
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+text = path.read_text()
+marker = "MA_5_EXTENSION = MA_5_EXTENSION[:500]"
+if marker not in text:
+    if not text.endswith("\n"):
+        text += "\n"
+    text += (
+        "MA_5_EXTENSION = MA_5_EXTENSION[:500]\n"
+        "MA_20_EXTENSION = MA_20_EXTENSION[:500]\n"
+        "WATCH_LIST_EXTENSION = WATCH_LIST_EXTENSION[:500]\n"
+        "TRANSACTION_HISTORY_EXTENSION = TRANSACTION_HISTORY_EXTENSION[:100]\n"
+    )
+    path.write_text(text)
+    print("capped TradingBot long-context filler:", path)
+else:
+    print("TradingBot filler cap already present")
+PY
+
 python - <<'PY'
 import bfcl_eval
 from bfcl_eval.eval_checker.multi_turn_eval.func_source_code.trading_bot import TradingBot

@@ -79,13 +79,18 @@ def main() -> None:
     port = cfg["server"]["port"]
     base_url = args.base_url or f"http://{host}:{port}"
     client_cfg = cfg["client"]
-    enable_thinking = bool(client_cfg.get("enable_thinking", False))
+    enable_thinking = bool(client_cfg.get("enable_thinking", True))
+    timeout_s = float(
+        os.environ.get("A1_CLIENT_TIMEOUT_S", client_cfg.get("timeout_s", 1800.0))
+    )
     client = LlamaServerClient(
         base_url=base_url,
         cache_prompt=bool(client_cfg["cache_prompt"]),
         temperature=float(client_cfg["temperature"]),
         top_p=float(client_cfg["top_p"]),
+        top_k=int(client_cfg.get("top_k", 20)),
         max_tokens=int(client_cfg["max_tokens"]),
+        timeout_s=timeout_s,
         chat_template_kwargs={"enable_thinking": enable_thinking},
     )
     if not client.health():
@@ -105,7 +110,9 @@ def main() -> None:
     print(
         f"harness: long_context={args.long_context} "
         f"pass_tools_api={client_cfg.get('pass_tools_api', True)} "
-        f"enable_thinking={enable_thinking}",
+        f"enable_thinking={enable_thinking} "
+        f"temperature={client_cfg['temperature']} top_p={client_cfg['top_p']} "
+        f"top_k={client_cfg.get('top_k', 20)}",
         flush=True,
     )
 
@@ -147,6 +154,8 @@ def main() -> None:
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
     print(f"wrote {summary_path}")
+    if any(not row.get("success") for row in summary):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

@@ -14,9 +14,10 @@ class LlamaServerClient:
         base_url: str = "http://127.0.0.1:8080",
         *,
         cache_prompt: bool = False,
-        temperature: float = 0.0,
-        top_p: float = 1.0,
-        max_tokens: int = 512,
+        temperature: float = 0.6,
+        top_p: float = 0.95,
+        top_k: int = 20,
+        max_tokens: int = 2048,
         timeout_s: float = 1800.0,
         chat_template_kwargs: dict[str, Any] | None = None,
     ) -> None:
@@ -24,6 +25,7 @@ class LlamaServerClient:
         self.cache_prompt = cache_prompt
         self.temperature = temperature
         self.top_p = top_p
+        self.top_k = top_k
         self.max_tokens = max_tokens
         self.timeout_s = timeout_s
         self.chat_template_kwargs = chat_template_kwargs or {}
@@ -52,6 +54,7 @@ class LlamaServerClient:
             "messages": messages,
             "temperature": self.temperature,
             "top_p": self.top_p,
+            "top_k": self.top_k,
             "max_tokens": self.max_tokens,
             "cache_prompt": self.cache_prompt,
             "stream": False,

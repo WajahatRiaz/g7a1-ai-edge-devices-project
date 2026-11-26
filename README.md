@@ -5,7 +5,8 @@ AI624 · AI on Edge Devices · Fall 2026
 
 On-device multi-turn tool calling with Qwen3 through [llama.cpp](https://github.com/ggml-org/llama.cpp) `llama-server`. Sessions grow to tens of thousands of tokens as tool outputs are appended; the agent must still emit a valid call at the end.
 
-**Dashboard:** [wajahatriaz.github.io/g7a1-ai-edge-devices-project](https://wajahatriaz.github.io/g7a1-ai-edge-devices-project/)
+**Dashboard:** [wajahatriaz.github.io/g7a1-ai-edge-devices-project](https://wajahatriaz.github.io/g7a1-ai-edge-devices-project/)  
+**Presentation:** [docs/Presentation.md](docs/Presentation.md)
 
 ## Table of contents
 
@@ -15,7 +16,7 @@ On-device multi-turn tool calling with Qwen3 through [llama.cpp](https://github.
 4. [Tool subset and tasks](#4-tool-subset-and-tasks)
 5. [Requirements](#5-requirements)
 6. [Setup](#6-setup)
-7. [Week 1 workflow (host)](#7-week-1-workflow-host)
+7. [Week 1 workflow](#7-week-1-workflow)
 8. [Measurement notes](#8-measurement-notes)
 9. [Repository layout](#9-repository-layout)
 
@@ -27,21 +28,22 @@ On-device multi-turn tool calling with Qwen3 through [llama.cpp](https://github.
 |---|---|
 | **Runtime** | `llama.cpp` / `llama-server` (every token on device) |
 | **Model family** | Qwen3, full attention in every layer (Qwen3.5 hybrids are out of scope) |
-| **Baseline** | Qwen3-1.7B BF16, 16k context, `cache_prompt: false` |
+| **Baseline** | Qwen3-1.7B BF16, `cache_prompt: false`, thinking on. Served context on the Pi is 8192. The manual's nominal cache is 16k. |
 | **Tools** | ~20–30 BFCL multi-turn functions, long-context mode, must include TradingBot |
 | **Out of scope** | Multi-agent orchestration; model served from another machine |
 
-Latency, memory, and power are measured on the Pi. Task accuracy may be scored on a host with the same weights and pipeline. Until the board arrives, develop on this Linux host and rebuild on the Pi before reporting device metrics.
+Latency, memory, and power are measured on this Raspberry Pi 5. Task accuracy for the full held-out split is scored on a host with the same weights and pipeline. The talk outline, diagrams, and references are in [docs/Presentation.md](docs/Presentation.md).
 
 ### Baseline rules (before any optimization)
 
 - Qwen3-1.7B (or the 2–4B member of the family) in BF16
-- 16k context (fits in 8 GB)
+- 16k context (fits in 8 GB). On the Pi, time a session that processes about 10k tokens. A stateless resend much larger than that, such as ~36k tokens at ~1.4 tok/s, is about 7 hours and is prohibitively long for the baseline. Later experiments (FP16, prompt caching, quantization) are what should make those sessions feasible.
 - Stateless client: full history resent every turn, prefix caching **off**
 - All tool schemas in the system prompt
-- Unconstrained sampling, default llama.cpp build settings
+- Thinking on, which is the Qwen chat-template default. Sampling is Qwen's thinking-mode setting: temperature 0.6, top-p 0.95, top-k 20. Non-thinking mode skipped `fund_account` after login.
+- Flash attention left at llama-server's default, `--flash-attn auto`
 
-`llama-server` caches prompt prefixes by default. The baseline client must send `cache_prompt: false`.
+`llama-server` caches prompt prefixes by default. The baseline client must send `cache_prompt: false`. BF16 stays the baseline. If decode stays near 1.4 tok/s, an FP16 conversion is the first improvement to report, because the Pi has faster FP16 instructions. Do not replace the baseline weights with that conversion. Prompt caching is the next serving change. Score the full test split on a host with the same weights.
 
 ---
 
@@ -52,13 +54,17 @@ Each user turn: the model emits a tool call → the tool runs locally via BFCL b
 ```mermaid
 flowchart LR
   U[User turn] --> H[Harness]
-  H --> S[llama-server<br/>Qwen3 GGUF]
+  H --> S[llama-server<br/>Qwen3 BF16 on the Pi]
   S --> C{Tool call?}
   C -->|yes| T[BFCL backend<br/>TradingBot / MessageAPI]
   T --> H
   C -->|no| D[End of turn]
-  H --> M[Per-turn metrics]
+  P[vcgencmd sampler] --> R[Dated history]
+  H --> R
+  R --> G[GitHub Pages dashboard]
 ```
+
+The sampler runs beside the harness for the whole command. The client resends the full history on every turn and sets `cache_prompt: false`.
 
 Improvement lineage (kept / discarded steps, same held-out split):
 
@@ -79,48 +85,47 @@ Each change is applied on top of the last accepted configuration. Every step is 
 
 | When | Due | Status | Deliverable |
 |---|---|---|---|
-| Week 1 presentation | 29 Nov 2026 | In progress (host) | Tool subset, trace set, harness; baseline characterized on the Pi |
+| Week 1 presentation | 29 Nov 2026 | In progress on the Pi | Tool subset, trace set, harness; baseline characterized on the Pi |
 | Week 2 presentation | 6 Dec 2026 | Not started | Prompt caching; weight and KV-cache quantization |
 | Final presentation, demo, viva | 20 Dec 2026 | Not started | Further compression, context management, live demo |
 | Code and report | 24 Dec 2026 | Not started | Documented code and written report |
 
 ### 3.1 Week 1 checklist
 
-Legend: `[x]` done on this Linux host · `[ ]` still open · `[P]` must be redone or measured on the Pi
+Legend: `[x]` done · `[ ]` still open. Device metrics come from this Raspberry Pi 5. Accuracy for the full test split is a host run with the same weights.
 
 #### Infrastructure
 
 - [x] Repo layout, `setup.sh`, lean `.venv`, `.venv-convert`
-- [x] Submodules: `third_party/llama.cpp`, `third_party/gorilla`
-- [x] Native `llama-server` / `llama-cli` / `llama-quantize` / `llama-imatrix` build (x86 host)
-- [ ] `[P]` Rebuild llama.cpp on the Pi (`./setup.sh` there)
-- [x] Download `Qwen/Qwen3-1.7B` HF weights (`models/hf/Qwen3-1.7B/`)
-- [x] Convert to `models/qwen3-1.7b-bf16.gguf`
-- [x] Serve BF16 on the host (`llama-server` on `127.0.0.1:8080`, host-safe `-c 8192`)
+- [x] Submodules: `third_party/llama.cpp` (`d1eb0de`), `third_party/gorilla`
+- [x] Native `llama-server`, `llama-cli`, `llama-quantize`, and `llama-imatrix` built on this Pi 5
+- [x] Download `Qwen/Qwen3-1.7B` and convert `models/qwen3-1.7b-bf16.gguf`
+- [x] Serve BF16 on the Pi (`127.0.0.1:8080`, `-c 8192`, `-np 1`, `-t 2`, `-tb 4`)
+- [x] Dated power and thermal traces, GitHub Pages dashboard
+- [x] TradingBot long-context filler cap in the shared `long_context.py` (`setup.sh` reapplies it)
 
 #### Task 1 — tool subset and long session
 
 - [x] Fixed subset: TradingBot (20) + MessageAPI (10) = 30 tools
 - [x] BFCL long-context tasks for that subset (33 tasks)
-- [x] Train / test hold-out
-- [x] Five project long tasks (16k–32k target)
-- [x] At least two early-detail long tasks held out in the test split
+- [x] Train (26) / test (12) hold-out
+- [x] Five project long tasks; two early-detail tasks sit in the test split
+- [ ] A finished session whose tool output is in the manual's 16k–32k range, after the filler cap (median tool context should fall near 8–11k tokens)
 
 #### Task 2 — client harness
 
 - [x] `src/a1_agent` harness (client, BFCL backends, parse/validate)
 - [x] Per-turn token and timing logs, call validity
-- [x] `cache_prompt: false` and schemas in the system prompt
-- [x] End-to-end harness smoke against the live `llama-server` (`long_extra_03_fund_after_dump`, success, 4/4 calls)
+- [x] `cache_prompt: false`, schemas in the system prompt
+- [x] Thinking on, with Qwen thinking-mode sampling (temperature 0.6, top-p 0.95, top-k 20)
+- [ ] A finished Pi session log for `long_extra_04_watchlist` under that baseline (run `2026-11-26T06-39-36Z` was still in its first prefill when this checklist was written)
 
 #### Task 3 — baseline characterization
 
-- [x] Host harness smoke + call-validity logs on a long task (`results/baseline/long_extra/`)
-- [x] Host held-out sample: 3 test tasks, all tool calls schema-valid (`results/baseline/test/`)
-- [ ] Host prefill/decode sweep at ≥3 context lengths (`scripts/characterize_baseline.py`)
-- [ ] `[P]` Peak memory, bandwidth-bound decode check, power/thermal on the Pi
-- [ ] `[P]` Full held-out test split on the Pi before any optimization
-- [ ] `[P]` BFCL `--long-context` dumps and larger `-c` (16k/32k) on the Pi
+- [ ] Prefill/decode sweep at 512, 2048, and 4096 (`scripts/characterize_baseline.py`), with power and temperature
+- [ ] Peak memory, bandwidth-bound decode check, and a thermal summary for that run
+- [ ] Full held-out test split on a host (`./scripts/run_host_accuracy.sh`)
+- [ ] Sessions well above about 10k processed tokens, once FP16 or prompt caching makes them feasible
 
 ---
 
@@ -130,8 +135,10 @@ Configured in [`configs/tool_subset.json`](configs/tool_subset.json).
 
 | Backend | Tools | Role |
 |---|---|---|
-| TradingBot | 20 | Required. Verbose order/transaction dumps grow sessions past 16k tokens. |
+| TradingBot | 20 | Required. Long-context mode appends filler after the real records. |
 | MessageAPI | 10 | Second BFCL backend; brings the set to 30 tools. |
+
+Qwen3 tokenizes digits separately, so the uncapped TradingBot filler is much longer than the ~11k tokens named in the project description. A course note measured about 31.6k tokens for one `get_stock_info` and about 49.3k for `get_transaction_history`, with TradingBot sessions at a median of 32–36k tokens. `setup.sh` caps the filler lists at the end of `long_context.py` (`MA` and watchlist 500, transaction history 100). That file is the one both the agent and the checker import. After the cap, the same note expects `get_stock_info` near 7.9k tokens and `get_transaction_history` near 4.9k, and a session median of 8–11k tokens of tool output. A local check of `get_stock_info("AAPL")` returned 7,983 characters of compact JSON. The filler is not written into account state, so scoring of the real records is unchanged.
 
 **BFCL source:** `BFCL_v4_multi_turn_long_context.json`, keeping tasks where  
 `involved_classes ⊆ {TradingBot, MessageAPI}` and TradingBot is present.
@@ -158,8 +165,8 @@ python scripts/prepare_tasks.py
 
 ### 5.1 Hardware
 
-- **Reported metrics:** 8 GB Raspberry Pi 5
-- **Development:** any Linux host (rebuild on the Pi; x86 binaries will not run there)
+- **This machine:** Raspberry Pi 5 Model B Rev 1.0, 8 GB, 4 cores. `llama.cpp` is built and run here.
+- **Accuracy host:** same GGUF and `./scripts/run_host_accuracy.sh`. Do not time that split on the Pi.
 
 ### 5.2 System packages
 
@@ -233,15 +240,16 @@ DOWNLOAD_MODEL=1 ./setup.sh
 
 ---
 
-## 7. Week 1 workflow (host)
+## 7. Week 1 workflow
 
 ```mermaid
 flowchart TD
   A[./setup.sh] --> B[prepare_tasks.py]
   B --> C[download_and_convert_baseline.sh]
-  C --> D[llama-server BF16 16k]
-  D --> E[run_harness.py smoke]
-  E --> F[characterize_baseline.py]
+  C --> D[llama-server BF16 on the Pi]
+  D --> E[run_baseline.sh about 10k tokens]
+  E --> F[export_dashboard.sh]
+  D --> G[run_host_accuracy.sh on a host]
 ```
 
 ### 7.1 Download and convert BF16 GGUF
@@ -277,7 +285,7 @@ Optional: `export HF_TOKEN=...` for higher Hugging Face rate limits.
 
 ### 7.2 Serve the baseline
 
-**Host memory warning:** BF16 (~3.8G weights) + a large KV cache can thrash swap and lock up a ~16GB machine. On this host use **one** server at `-c 8192` (or `16384` max). Do **not** start a second server on `:8081` with `-c 32768`, and do **not** pass `--long-context` until you have headroom (or are on the Pi).
+**Memory:** BF16 weights are about 3.8 GB. One server, `-c 8192`, `-np 1`. A second server, or `-c 32768`, does not fit beside the OS on 8 GB. Leave `--long-context` off until a short session has been measured. The filler cap in `setup.sh` is what keeps a later long-context dump from jumping to tens of thousands of tokens.
 
 **Interactive chat (Web UI):** start the server, then open **http://127.0.0.1:8080/** in a browser. The wrapper picks `models/qwen3-1.7b-bf16.gguf` when present, otherwise `models/qwen3-1.7b-q8_0.gguf` (override with `MODEL=...`).
 
@@ -295,37 +303,34 @@ export LD_LIBRARY_PATH="${PWD}/build/llama.cpp/bin:${LD_LIBRARY_PATH:-}"
   -c 8192 \
   --jinja \
   --webui \
-  -t 4 \
+  -t 2 \
+  -tb 4 \
+  -np 1 \
   --host 127.0.0.1 \
   --port 8080
 ```
 
 **One-shot prompt (terminal, not multi-turn):** `./scripts/chat_once.sh "your question"` — uses `llama-cli`; this build has no `-cnv` REPL.
 
-### 7.3 Host baseline validation (run in series)
+### 7.3 Baseline runs
 
-Keep that **single** `llama-server` running. In a second shell, run these **one after another**. Only continue if the previous step finishes cleanly. Harness defaults to **no** BFCL long dumps (`--long-context` is opt-in).
+Keep that **single** `llama-server` running. Baseline config: [`configs/baseline.yaml`](configs/baseline.yaml). Thinking on, temperature 0.6, top-p 0.95, top-k 20, `cache_prompt: false`.
 
-Baseline config: `cache_prompt: false`, schemas in the system prompt ([`configs/baseline.yaml`](configs/baseline.yaml)).
+On the Pi, one short session plus the sweep stays around 10k tokens processed:
 
 ```bash
-# 1) smoke one TradingBot task  (Task 2 — harness + tools; no long dumps)
-./scripts/run_harness.sh --split long_extra --task-id long_extra_03_fund_after_dump
-
-# 2) small held-out sample  (Task 1/3 — held-out split sanity check)
-./scripts/run_harness.sh --split test --limit 3
-
-# 3) host prefill/decode sweep  (Task 3 — keep lengths under server -c)
-./scripts/characterize_baseline.sh --lengths 512,2048,4096
+./scripts/run_baseline.sh
 ```
 
-| Step | What it checks | Milestone |
-|---|---|---|
-| 1 | Server + harness + tools on a TradingBot task (short dumps) | Week 1 Task 2 |
-| 2 | Same pipeline on a few held-out test tasks | Week 1 Tasks 1 & 3 |
-| 3 | Prefill/decode at 512 / 2048 / 4096 tokens | Week 1 Task 3 (host timings) |
+That runs `long_extra_04_watchlist`, then prefill/decode at 512, 2048, and 4096. `long_extra_03_fund_after_dump` processed about 36k tokens at about 1.4 tok/s, roughly 7 hours. Treat sessions above about 10k tokens as too long for this BF16 baseline. FP16, then prompt caching, are the first experiments aimed at that.
 
-Full BFCL long-context dumps (`--long-context`) and larger `-c` belong on the Pi (or a host with free RAM and no swap thrash). Logs land under `results/baseline/`. Memory, energy, and thermal fields stay null until the Pi.
+On a host, with the same weights, score the full held-out split:
+
+```bash
+./scripts/run_host_accuracy.sh
+```
+
+Logs land under `results/baseline/`. Harness defaults to **no** BFCL long dumps (`--long-context` is opt-in).
 
 ### 7.4 Quantize only after the baseline is characterized
 
@@ -342,12 +347,14 @@ Full BFCL long-context dumps (`--long-context`) and larger `-c` belong on the Pi
 
 **Every change reports:** session success, call validity, per-turn latency (prefill / decode / tool), cold and warm time to first call, peak memory, energy per session, thermal state.
 
-**On the Pi**, from a separate process:
+`./scripts/sample_device.sh -- <command>` samples the Pi for the whole command, about once a second, and archives the trace under `results/baseline/history/<timestamp>/`. It sums paired PMIC rails (`vcgencmd pmic_read_adc`), reads `measure_temp` and `get_throttled`, and records `llama-server` peak RSS. A run with `throttled_now` set (`freq_capped` or `throttled`) is a throttled run. Sticky `0x80000` (`soft_temp_limit_occurred`) alone is history since boot, not a reason to discard the sample.
+
+Manual equivalents:
 
 ```bash
-vcgencmd pmic_read_adc    # sum V×I over rails; integrate over steady window
+vcgencmd pmic_read_adc
 vcgencmd measure_temp
-vcgencmd get_throttled    # flag throttled runs
+vcgencmd get_throttled
 ```
 
 **Record with every result:**
@@ -367,24 +374,28 @@ setup.sh                              # submodules, venvs, llama.cpp build
 requirements.txt                      # lean harness deps
 configs/
   tool_subset.json                    # TradingBot + MessageAPI (30 tools)
-  baseline.yaml                       # BF16, 16k, cache_prompt=false
+  baseline.yaml                       # BF16, thinking on, cache_prompt=false
 src/a1_agent/                         # client, parser, backends, harness
 scripts/
-  start_server.sh                     # llama-server + Web UI (interactive chat)
-  chat_once.sh                        # single-turn llama-cli prompt
-  run_harness.sh                      # wrapper → run_harness.py (BFCL agent)
-  characterize_baseline.sh            # wrapper → characterize_baseline.py
-  prepare_tasks.py                    # BFCL subset + long extras + split
+  start_server.sh                     # llama-server on the Pi
+  run_baseline.sh                     # short Pi session + prefill/decode sweep
+  run_host_accuracy.sh                # full test split, for a host
+  sample_device.sh                    # power, temperature, RSS for one command
+  export_dashboard.sh                 # results/baseline/history → docs/data
   run_harness.py                      # multi-turn loop vs llama-server
   characterize_baseline.py            # prefill/decode sweep
+  prepare_tasks.py                    # BFCL subset + long extras + split
   download_and_convert_baseline.sh    # HF + curl resume + BF16 GGUF
 data/tasks/                           # train / test / long_extra
+docs/
+  Presentation.md                     # talk: architecture, checklist, references
+  index.html                          # GitHub Pages dashboard
+  Project_Description_AI624_2026.pdf  # course manual
 third_party/llama.cpp                 # inference runtime (submodule)
 third_party/gorilla/…                 # BFCL backends (submodule)
 build/llama.cpp/bin/                  # llama-server and tools (local)
 models/                               # HF weights + GGUF (gitignored)
 results/                              # per-run metrics (gitignored)
-docs/                                 # course project description
 ```
 
 Gitignored: `.venv/`, `.venv-convert/`, `build/`, `models/`, `results/`, `logs/`.

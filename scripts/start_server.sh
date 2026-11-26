@@ -28,12 +28,17 @@ fi
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8080}"
 CTX="${CTX:-8192}"
-THREADS="${THREADS:-$(nproc)}"
+NPROC="$(nproc)"
+THREADS="${THREADS:-2}"
+THREADS_BATCH="${THREADS_BATCH:-${NPROC}}"
+# One slot on 8GB Pi: default `-np auto` reserves 4×8192 KV and slows BF16 runs.
+PARALLEL="${PARALLEL:-1}"
 
 export LD_LIBRARY_PATH="${ROOT}/build/llama.cpp/bin:${LD_LIBRARY_PATH:-}"
 
 echo "Model:   ${GGUF}"
 echo "Listen:  http://${HOST}:${PORT}/"
+echo "CTX=${CTX} parallel=${PARALLEL} threads=${THREADS} threads_batch=${THREADS_BATCH}"
 echo "Stop:    pkill -f llama-server"
 exec "${SERVER}" \
   -m "${GGUF}" \
@@ -41,5 +46,7 @@ exec "${SERVER}" \
   --jinja \
   --webui \
   -t "${THREADS}" \
+  -tb "${THREADS_BATCH}" \
+  -np "${PARALLEL}" \
   --host "${HOST}" \
   --port "${PORT}"

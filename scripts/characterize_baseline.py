@@ -2,9 +2,9 @@
 """
 Baseline characterization helpers (Task 3).
 
-On this host: measure prefill/decode timing and prompt sizes at several
-context lengths via llama-server. Peak memory, power, and thermal state
-require the Pi and are left as recorded fields to fill later.
+Measure prefill and decode at several prompt lengths via llama-server.
+On the Pi, scripts/sample_device.sh records power, temperature, and memory
+around this sweep.
 """
 
 from __future__ import annotations
@@ -30,6 +30,13 @@ def make_prompt(n_tokens_approx: int) -> str:
     return (unit * ((need // len(unit)) + 1))[:need]
 
 
+def request_timeout_s() -> float:
+    raw = os.environ.get("A1_COMPLETION_TIMEOUT_S")
+    if raw:
+        return float(raw)
+    return 10800.0
+
+
 def completion(base_url: str, prompt: str, cache_prompt: bool, n_predict: int = 32):
     body = {
         "prompt": prompt,
@@ -39,7 +46,7 @@ def completion(base_url: str, prompt: str, cache_prompt: bool, n_predict: int = 
         "stream": False,
     }
     t0 = time.perf_counter()
-    r = requests.post(f"{base_url}/completion", json=body, timeout=600)
+    r = requests.post(f"{base_url}/completion", json=body, timeout=request_timeout_s())
     wall = time.perf_counter() - t0
     r.raise_for_status()
     payload = r.json()

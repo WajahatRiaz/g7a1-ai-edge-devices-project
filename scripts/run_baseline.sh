@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Record the Week 1 baseline after llama-server is already running.
-# Long task, held-out sample, and prefill/decode sweep, each with power and
-# temperature, then refresh docs/data/dashboard.json.
+# Pi baseline after llama-server is already running.
+# One short session plus a prefill/decode sweep, together around 10k tokens.
+# Longer sessions stay out of this run: a stateless BF16 history of ~36k tokens
+# at ~1.4 tok/s is about 7 hours, and that is what later experiments should fix.
+# Full held-out accuracy is ./scripts/run_host_accuracy.sh on a host.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,16 +25,15 @@ if ! curl -fsS --max-time 5 "${BASE_URL}/health" >/dev/null; then
 fi
 
 echo "Server is up at ${BASE_URL}/"
-echo "1/3 long task"
-./scripts/sample_device.sh -- ./scripts/run_harness.sh --split long_extra --task-id long_extra_03_fund_after_dump
+echo "Pi budget: about 10k tokens processed. Sessions well above that are prohibitively long for this BF16 stateless baseline."
+echo "1/2 short TradingBot session"
+./scripts/sample_device.sh -- ./scripts/run_harness.sh --split long_extra --task-id long_extra_04_watchlist
 
-echo "2/3 held-out sample"
-./scripts/sample_device.sh -- ./scripts/run_harness.sh --split test --limit 3
-
-echo "3/3 prefill/decode sweep"
+echo "2/2 prefill/decode sweep (512 + 2048 + 4096 prompt tokens)"
 ./scripts/sample_device.sh -- ./scripts/characterize_baseline.sh --lengths 512,2048,4096
 
 echo "Exporting dashboard"
 ./scripts/export_dashboard.sh
 echo "Wrote docs/data/dashboard.json"
-echo "Commit that file and push to update the GitHub page."
+echo "Anything that processes much more than 10k tokens (the fund-after-dump session reached ~36k at ~1.4 tok/s, about 7 hours) is left for later: FP16, prompt caching, then quantization."
+echo "Score the full test split on a host with the same weights: ./scripts/run_host_accuracy.sh"

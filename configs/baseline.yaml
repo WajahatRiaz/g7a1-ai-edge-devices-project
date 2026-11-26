@@ -12,17 +12,23 @@ server:
   jinja: true
 client:
   cache_prompt: false
-  temperature: 0.0
-  top_p: 1.0
-  max_tokens: 512
+  # Qwen3 thinking-mode sampling. Non-thinking, if compared later, is
+  # temperature 0.7, top_p 0.8, top_k 20.
+  temperature: 0.6
+  top_p: 0.95
+  top_k: 20
+  # Room for the think block and the tool call. 512 was ending the turn early.
+  max_tokens: 2048
+  # Pi BF16 + tool schemas can exceed 30m per turn; override with A1_CLIENT_TIMEOUT_S.
+  timeout_s: 10800
   schemas_in_system_prompt: true
   # Also pass OpenAI-style tools so llama-server/Qwen3 emits native tool_calls.
   # Schemas remain in the system prompt for the baseline requirement.
   pass_tools_api: true
   tool_choice: auto
-  # Qwen3 otherwise spends the budget on <think> and never calls tools.
-  enable_thinking: false
-  unconstrained_sampling: true
+  # Default Qwen chat template. Thinking off skipped fund_account after login.
+  enable_thinking: true
+  unconstrained_sampling: false
   grammar: null
 tool_subset: configs/tool_subset.json
 tasks:
@@ -30,6 +36,18 @@ tasks:
   test: data/tasks/test.jsonl
   long_extra: data/tasks/long_extra.jsonl
 metrics_dir: results/baseline
+# Pi timing stays near 10k tokens processed. A stateless BF16 session that
+# re-sends much more than that (about 36k tokens at 1.4 tok/s is ~7 hours)
+# is prohibitively long for the baseline and is what later experiments
+# (FP16, prompt cache, quantization) should make feasible.
+# Full held-out accuracy uses the same weights on a host, not the Pi.
+pi_token_budget: 10000
+flash_attn: auto
+first_improvement: >
+  Keep BF16 as the baseline. If decode stays near 1.4 tok/s, an FP16
+  conversion is the first improvement to list: the Pi has faster FP16
+  instructions. Prompt caching is the next serving change. Flash attention
+  is llama-server's default (--flash-attn auto) and is left on.
 host_note: >
-  Latency, memory, and power must be measured on the Pi. This host can
-  debug the harness and estimate accuracy with the same GGUF and pipeline.
+  Latency, memory, and power for a short session are measured on the Pi.
+  Score the full test split on a host with the same GGUF and pipeline.
