@@ -10,11 +10,187 @@ Live charts: [wajahatriaz.github.io/g7a1-ai-edge-devices-project](https://wajaha
 How to run it: [README.md](../README.md)  
 Course handout: [Project_Description_AI624_2026.pdf](Project_Description_AI624_2026.pdf)
 
-This is the talk, written for someone who has not seen the project. Each section says what a thing is, then what this project does with it. Numbers from 26 Nov 2026 are from a run that had not finished. They are observations, not the final score.
+This is the talk, written for someone who has not seen the project. It has three parts. **Hardware setup** is the Raspberry Pi itself. **Software setup** is every program we install and the commands that start a run. **The project** is the experiment: a model that calls tools, why long chats are hard, and what we measure. Numbers from 26 Nov 2026 are from a run that had not finished. They are observations, not the final score.
 
 ---
 
-## 1. The project in one page
+## Part 1. Hardware setup
+
+### The board
+
+The computer under test is a **Raspberry Pi 5 Model B Rev 1.0**. A Raspberry Pi is a small single-board computer, about the size of a deck of cards. "8 GB" is the working memory (RAM). A laptop often has 16 GB or more. This board has 4 processor cores (ARM Cortex-A76). Its name on the network is `g7a1-machine`. It runs Raspberry Pi OS, kernel `6.18.60+rpt-rpi-2712`.
+
+There is no separate graphics card and no external power meter. The model runs on the Pi's own processor. Watts, degrees, and the "am I going too slow to stay cool?" flag are read from chips already on the board, with a Raspberry Pi command called `vcgencmd`.
+
+| What we read | Command | Plain meaning |
+|---|---|---|
+| Power | `vcgencmd pmic_read_adc` | Voltage times current on each supply rail that reports both. About once a second during a run |
+| Temperature | `vcgencmd measure_temp` | Degrees Celsius of the main chip |
+| Throttle | `vcgencmd get_throttled` | Whether the chip has cut its own speed |
+
+**Throttling** is the board protecting itself. When the chip gets too hot it lowers the clock. It can sit near 95°C, draw only a few watts, and get less work done per second. A speed measured in that state is a hot-board speed.
+
+Rails named `EXT5V` and `BATT` report a voltage and no current. They are left out of the watt sum. A watt figure needs both voltage and current.
+
+A second computer, called the **host** in the course notes, is allowed for one job only: scoring whether the model got the exam questions right, using the same model file. Speed, memory, heat, and power stay on this Pi.
+
+### What has to fit in 8 GB
+
+The model file is about 3.8 GB and stays in memory the whole time. On top of that, the model keeps notes for every piece of the chat it has read. Those notes are the **KV cache**. They grow with the chat and live in the same 8 GB.
+
+A **token** is one piece of text. A common word may be one token. In this model each digit is its own token, so a long number is many tokens. "10k tokens" means about ten thousand pieces.
+
+| What is in memory | Size |
+|---|---|
+| The model file (BF16, explained in the software section) | about 3.8 GB |
+| Notes kept per token | about 112 KB each |
+| An 8,192-token chat | about 0.9 GB of notes |
+| A 16,384-token chat | about 1.75 GB of notes |
+| A 32,768-token chat | about 3.5 GB of notes |
+
+The 112 KB figure comes from the shape of this model: 28 layers, 8 note-heads, 128 numbers wide, two bytes each, and both a key and a value. 2 × 28 × 8 × 128 × 2 bytes = 114,688 bytes, which is 112 KiB.
+
+The course handout's official starting length is 16,384 tokens. That fits beside the 3.8 GB file. A 32,768-token chat plus the file does not, once Linux is using memory too. The server that is actually running was started at 8,192 tokens.
+
+```mermaid
+flowchart LR
+  subgraph board [8 GB on the Raspberry Pi 5]
+    W[Model file 3.8 GB]
+    K[Chat notes 112 KB per token]
+    O[Linux and the server]
+  end
+  W --- K --- O
+```
+
+---
+
+## Part 2. Software setup
+
+The software is everything installed on that board so the model can answer, call a fake app, and write down watts and degrees.
+
+### What gets installed
+
+From a fresh Raspberry Pi OS, the build needs a compiler, CMake, git, and Python:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential cmake git pkg-config \
+  libcurl4-openssl-dev python3-venv python3-dev
+```
+
+Then the project itself:
+
+```bash
+git clone --recurse-submodules --shallow-submodules \
+  git@github.com:WajahatRiaz/g7a1-ai-edge-devices-project.git
+cd g7a1-ai-edge-devices-project
+./setup.sh
+```
+
+`./setup.sh` does four jobs:
+
+1. Downloads two third-party code trees if they are missing. **llama.cpp** is the program that runs the model on a normal processor, without a large NVIDIA GPU. The copy here is commit `d1eb0de`. **Gorilla** is the Berkeley tool-use exam; we use only its fake apps.
+2. Creates `.venv`, a private Python library folder, and installs two small libraries: `requests` (to talk to the model server) and `PyYAML` (to read the settings file).
+3. Builds four programs into `build/llama.cpp/bin/`: `llama-server` (answers chat requests), `llama-cli` (one question in the terminal), `llama-quantize` (makes a smaller copy of the model later), and `llama-imatrix` (records which weights matter, also later).
+4. Cuts the made-up TradingBot padding in `long_context.py` if that cut is not already there. The same file is used by our runner and by the exam's checker.
+
+A second Python folder, `.venv-convert`, is created only when the model is downloaded. It holds the heavier libraries (`torch`, `numpy`) that turn the published model into our file. The harness does not need them.
+
+The model weights are not in git. They are downloaded from [Qwen/Qwen3-1.7B](https://huggingface.co/Qwen/Qwen3-1.7B) and converted locally:
+
+```bash
+./scripts/download_and_convert_baseline.sh
+```
+
+**Qwen3-1.7B** is the model, from Alibaba's Qwen team. "1.7B" means about 1.7 billion learned numbers. Those numbers are the **weights**. The converted file is `models/qwen3-1.7b-bf16.gguf`, about 3.8 GB.
+
+**GGUF** is the file format llama.cpp reads. **BF16** is the 16-bit layout of the starting file. **FP16** is another 16-bit layout this Pi can multiply faster. FP16 is the first later experiment. It does not replace the BF16 file. A smaller GGUF such as Q8 or Q4 is **quantization**: fewer bits per number, smaller and slightly less exact. Those copies are not built yet. The official GGUF published for this model is a Q8 file. That file is not our starting point.
+
+### How a run is started
+
+Two terminals. The first starts the server and is left alone:
+
+```bash
+./scripts/start_server.sh
+```
+
+That is this command:
+
+```bash
+llama-server \
+  -m models/qwen3-1.7b-bf16.gguf \
+  -c 8192 --jinja --webui \
+  -t 2 -tb 4 -np 1 \
+  --host 127.0.0.1 --port 8080
+```
+
+| Flag | Meaning |
+|---|---|
+| `-m` | Which model file |
+| `-c 8192` | The longest chat the server will hold, in tokens. This is the **context** |
+| `--jinja` | Use Qwen's official chat template, including the scratchpad called thinking |
+| `--webui` | Also serve a browser chat at `http://127.0.0.1:8080/` |
+| `-t 2` | Two cores write new tokens |
+| `-tb 4` | All four cores read the incoming chat |
+| `-np 1` | Prepare memory for one chat. The default of four would reserve four copies of the chat notes and slow this model down |
+| `--host 127.0.0.1` | This machine only. The model is not on the public internet |
+
+`--flash-attn auto` is left unset, so the server uses its default. Flash attention is a faster way to do the step where each token looks at the others. The default turns it on when the model supports it.
+
+The second terminal, once the server says it is listening, runs the measurement:
+
+```bash
+./scripts/run_baseline.sh
+```
+
+### The programs, one by one
+
+| Program | What a person would use it for |
+|---|---|
+| `setup.sh` | Install libraries, build llama.cpp, and apply the TradingBot padding cut |
+| `scripts/download_and_convert_baseline.sh` | Download Qwen3 and write the BF16 file |
+| `scripts/ensure_convert_venv.sh` | Create the heavier Python folder used only for that conversion |
+| `scripts/prepare_tasks.py` | Copy the exam questions into train, test, and extra files |
+| `scripts/start_server.sh` | Start the model and leave it running |
+| `scripts/chat_once.sh` | Ask one question in the terminal. This is not a multi-step tool chat |
+| `scripts/run_harness.py` | Play a saved task: send the chat, run tools, write timings. `run_harness.sh` is the same thing |
+| `scripts/run_baseline.sh` | The Week 1 measurement: one short task, then a reading-speed sweep, with power logging |
+| `scripts/characterize_baseline.py` | The sweep alone: dummy prompts of 512, 2,048, and 4,096 tokens |
+| `scripts/sample_device.py` | Read watts, degrees, throttle, and server memory about once a second. `sample_device.sh` wraps another command with that log |
+| `scripts/export_dashboard.py` | Turn the logs into `docs/data/dashboard.json`. `export_dashboard.sh` is the same thing |
+| `scripts/run_host_accuracy.sh` | Score all 12 exam tasks. Meant for a normal computer, not for timing on the Pi |
+| `src/a1_agent/client.py` | The code that sends a chat to llama-server |
+| `src/a1_agent/schemas.py` | Loads the 30 tool descriptions |
+| `src/a1_agent/backends.py` | Runs the fake trading account and inbox |
+| `src/a1_agent/parse.py` | Checks that a tool request names a real tool and fills in the required arguments |
+| `src/a1_agent/harness.py` | The loop: chat, tool, chat again, and the per-turn timings |
+| `configs/baseline.yaml` | The starting settings, so a later experiment changes a file instead of a habit |
+| `docs/index.html` | The public page of past runs, from GitHub Pages |
+
+```mermaid
+flowchart LR
+  subgraph files [Files in the project]
+    Y[baseline.yaml settings]
+    T[Saved exam questions]
+    H2[Our harness]
+  end
+  subgraph built [Programs built on the Pi]
+    L[llama-server runs the model]
+    Q[llama-quantize makes smaller copies later]
+    I[llama-imatrix measures which weights matter later]
+  end
+  Y --> L
+  T --> H2
+  H2 --> L
+```
+
+`llama-quantize` and `llama-imatrix` are already compiled. The starting measurement uses the full BF16 file only.
+
+---
+
+## Part 3. The project
+
+### The project in one page
 
 A **language model** is a program that continues text. You give it a conversation. It predicts the next piece of text, then the next, until it stops.
 
@@ -40,151 +216,43 @@ Two jobs are measured separately:
 
 ---
 
-## 2. Words used in this talk
+### Words for the experiment
 
-Read this once. Later sections use the short name and remind you what it means.
+Parts 1 and 2 already define the board, tokens, the model file, and the programs. These are the words the experiment adds.
 
-**Raspberry Pi 5.** A small single-board computer, about the size of a deck of cards. This one is the 8 GB model: 8 gigabytes of RAM, which is the working memory programs use while they run. A laptop often has 16 GB or more. The processor has 4 cores. The machine in this project is that board. Its name on the network is `g7a1-machine`.
+**Prompt.** The text we send in: the standing instructions plus the whole conversation so far.
 
-**Token.** The model does not read letters one by one, and it does not read whole sentences as one unit. Text is cut into tokens. A common word may be one token. In this model, each digit is its own token, so the number `2203.40` is many tokens. "10k tokens" means about ten thousand of these pieces. Time is often quoted in **tokens per second** (tok/s): how many pieces the computer gets through in one second.
+**Prefill.** The model reading that prompt. On a long chat this is most of the wait.
 
-**Prompt.** The text we send in. For a chat, the prompt is the instructions plus the whole conversation so far.
+**Decode.** The model writing new tokens, one by one, including its scratchpad and the tool request. Speed is quoted in tokens per second.
 
-**Context.** How much of that conversation the model is allowed to hold at once. A context of 8,192 tokens means the prompt plus the model's new text must fit in 8,192 tokens. Longer than that, and the server cannot accept the turn.
+**Tool, schema, tool call.** A tool is a function the model may ask to run, such as "add MSFT to the watchlist." A schema is the written description of that function. A tool call is the model naming one and filling in the arguments. The harness checks the name and the required arguments, then runs it.
 
-**Weights.** The learned numbers inside the model. They are the model. Qwen3-1.7B has about 1.7 billion of them. The file on disk is about 3.8 GB when each number is stored in a format called BF16.
+**BFCL.** The Berkeley Function Calling Leaderboard, a public exam for "can a model use tools?" It ships fake apps with real code, so a call can be executed and the resulting account can be checked. We use that code. We do not submit scores to their website.
 
-**BF16 and FP16.** Two ways to store those numbers with 16 bits each. BF16 (bfloat16) is what the starting file uses. FP16 (float16) is the same size on disk but uses a layout this Pi can multiply faster. Changing BF16 to FP16 is the first speed experiment. It is not the starting point. The course wants the slow, full-precision-style file measured first, so later speedups have something to beat.
+**TradingBot and MessageAPI.** Two of those fake apps. TradingBot is a stock account with 20 actions. MessageAPI is an inbox with 10. The course requires TradingBot. MessageAPI brings the set to 30, the top of the allowed range.
 
-**GGUF.** The file format llama.cpp uses for a model. `models/qwen3-1.7b-bf16.gguf` is Qwen3 stored that way. A smaller GGUF, such as Q8 or Q4, stores the same model with fewer bits per number. That is **quantization**: a smaller, faster, slightly less exact copy. We have not made those copies yet.
-
-**Qwen3-1.7B.** The model, made by Alibaba's Qwen team. "1.7B" is the size. It is a **dense** model: every layer runs for every token. Some newer models skip layers or use a sliding window so long chats stay cheap. This one does not. That is why the course picked it. The full model can handle 32,768 tokens. This Pi is serving 8,192, because the memory for a longer chat does not fit comfortably.
-
-**llama.cpp.** A program that runs models like Qwen on ordinary CPUs, without a large NVIDIA GPU. The copy in this project is commit `d1eb0de`.
-
-**llama-server.** The part of llama.cpp that sits in the background and answers HTTP requests. The harness talks to `http://127.0.0.1:8080/`. A browser can also open that address and chat. `127.0.0.1` means "this machine only." The model is not exposed on the public internet.
-
-**Prefill.** The model reading the prompt it was just given. On a long prompt this is most of the wait. We measured this part at about half a token per second while the Pi was hot.
-
-**Decode.** The model writing new tokens, one by one. That includes its private reasoning and the tool request.
-
-**KV cache.** While the model reads, it stores notes for every token so it does not recompute them from scratch inside one request. Those notes are the KV cache ("keys and values" from the attention math). They grow with every token and live in RAM. For this model the course handout puts them at about 112 KB per token. At 8,192 tokens that is about 0.9 GB. At 32,768 tokens it is about 3.5 GB, which plus the 3.8 GB weight file does not fit in 8 GB once the operating system is running.
-
-**Attention.** The step where each token looks at the others. **Flash attention** is a faster way to do that step. The server flag is `--flash-attn auto`, which means "turn it on when this model supports it." We left that default alone.
-
-**Tool, schema, tool call.** A tool is a function the model may ask to run, such as "add MSFT to the watchlist." A **schema** is the written description of that function: its name, its arguments, and what it returns. All 30 descriptions are pasted into the instructions so the model can see them. A **tool call** is the model naming one function and filling in the arguments. The harness checks that the name exists and the required arguments are present, then runs it.
-
-**BFCL.** The Berkeley Function Calling Leaderboard. It is a public exam for "can a model use tools?" It includes fake apps with real code, so a call can be executed and the resulting account state can be checked. We use that code. We do not submit scores to their website.
-
-**TradingBot and MessageAPI.** Two of those fake apps. TradingBot is a stock account: login, balance, orders, watchlist, stock quotes, transaction history. It has 20 tools. MessageAPI is an inbox. It has 10 tools. The course requires TradingBot. MessageAPI is there so the set has 30 tools, which is the top of the allowed range (20 to 30).
-
-**Turn.** One user message, plus everything the model and the tools do before the next user message. Inside one turn the model may call several tools.
+**Turn.** One user message, plus everything the model and the tools do before the next user message.
 
 **Session.** The whole task, several turns long.
 
-**Harness.** Our Python program (`src/a1_agent`) that plays the user from a saved task, sends the chat to llama-server, runs the tools, and writes down the timings.
+**Prefix cache off.** A prefix is the start of the prompt that is identical to last time. The server will reuse that reading unless we say no. The starting experiment says no (`cache_prompt: false`). Every turn, the full conversation is sent and read again. That is the "before" picture. Turning the cache on is a later experiment.
 
-**Stateless client / prefix cache off.** A prefix is the start of the prompt that is identical to last time. llama-server will reuse that work unless we say no. The starting experiment says no: `cache_prompt: false`. Every turn, the full conversation is sent and read again. That is deliberately wasteful. It is the "before" picture. Turning the cache on is a later experiment.
+**Thinking mode.** Qwen3 can write a private scratchpad before it answers. With thinking off, the model said it would add money to an account and then stopped without calling `fund_account`. With thinking on, it called `fund_account(amount=2203.4)`. The starting setup leaves thinking on. That is also Qwen's default.
 
-**Thinking mode.** Qwen3 can write a private scratchpad, marked as thinking, before it answers. The course note found that with thinking switched off, the model said it would add money to an account and then stopped without calling `fund_account`. With thinking on, it called `fund_account(amount=2203.4)`. The starting setup leaves thinking on. That is also Qwen's default.
+**Sampling.** When several next tokens are plausible, sampling picks one. Temperature 0.6, top-p 0.95, and top-k 20 are Qwen's recommendation for thinking mode. Temperature 0 would always pick the single most likely token. The course note asked us not to use that here. If thinking is compared later with thinking off, that recipe is temperature 0.7, top-p 0.8, top-k 20.
 
-**Sampling.** When several next tokens are plausible, sampling picks one. **Temperature** 0.6 means "not completely rigid, not wild." **top-p** 0.95 and **top-k** 20 limit which candidates are eligible. These three numbers are Qwen's recommendation for thinking mode. Temperature 0 would always pick the single most likely token. The course note asked us not to use that for the baseline.
+**System prompt.** The standing instructions at the top of every chat, including the 30 tool descriptions.
 
-**System prompt.** The standing instructions at the top of every chat, including the 30 tool descriptions. The model sees them on every turn because the whole chat is resent.
+**Train split and test split.** 26 tasks we may later learn from, and 12 exam tasks we score and do not tune on. The exam tasks are held out.
 
-**Train split and test split.** The tasks are divided so the ones we might later learn from (26 tasks) are not the ones we report as the exam (12 tasks). The exam tasks are **held out**: they stay unseen for scoring.
+**Early detail.** A fact near the start of a long chat that a later question asks for. Two exam tasks are built this way.
 
-**Early detail.** A fact that appears near the start of a long chat, which a later question asks for. If the model only looks at the end, it fails. Two exam tasks are built this way.
-
-**Host.** Any normal computer that is not this Pi. It is only for scoring the 12 exam tasks with the same model file. The Pi remains the place where speed and power are measured.
-
-**Baseline.** The starting configuration, before any speedup. If we change the file format or turn caching on first, we have nothing honest to compare against.
-
-**Throttling.** The Pi protects itself when it gets too hot. It lowers the processor speed. The chip can sit near 95°C and do less work per second while drawing only a few watts. A run in that state is a hot run, and the speed is not the speed of a cool board.
+**Baseline.** The starting configuration, before any speedup. Later experiments change one setting and say whether the change was kept.
 
 ---
 
-## 3. The computer and the software
-
-| Thing | Plain meaning | What we use |
-|---|---|---|
-| Board | The computer under test | Raspberry Pi 5 Model B Rev 1.0, 8 GB RAM, 4 cores |
-| Operating system | Raspberry Pi OS, Linux | Kernel `6.18.60+rpt-rpi-2712` |
-| Model runner | The program that loads Qwen and answers requests | llama.cpp, built on this Pi, commit `d1eb0de` |
-| Server process | That runner, waiting for chat requests | `llama-server` on port 8080, one chat at a time |
-| Model file | The 1.7B weights | `models/qwen3-1.7b-bf16.gguf`, about 3.8 GB, BF16 |
-| Context window | How long a chat may be | 8,192 tokens (`-c 8192`) |
-| Parallel slots | How many chats the server prepares memory for | 1 (`-np 1`). The default of 4 would reserve four copies of the KV cache and slow this model down |
-| Threads | How many cores read the prompt, and how many write tokens | 4 to read a batch (`-tb 4`), 2 to write (`-t 2`) |
-| Tool code | The fake trading account and inbox | BFCL, folder `third_party/gorilla` |
-| Our glue | Sends chats, runs tools, writes logs | `src/a1_agent` and the scripts in `scripts/` |
-| Python environment | A private set of Python libraries | `.venv` for the harness. `.venv-convert` only for turning the downloaded model into GGUF |
-| Power meter | Reads the board's own power chips | `vcgencmd pmic_read_adc` |
-| Thermometer | Reads the chip temperature and whether it has slowed itself | `vcgencmd measure_temp`, `vcgencmd get_throttled` |
-| Dashboard | A web page of past runs | `docs/index.html`, published on GitHub Pages |
-
-```mermaid
-flowchart LR
-  subgraph files [Files in the project]
-    Y[baseline.yaml settings]
-    T[Saved exam questions]
-    H2[Our harness]
-  end
-  subgraph built [Programs built on the Pi]
-    L[llama-server runs the model]
-    Q[llama-quantize makes smaller copies later]
-    I[llama-imatrix measures which weights matter later]
-  end
-  Y --> L
-  T --> H2
-  H2 --> L
-```
-
-`llama-quantize` and `llama-imatrix` are already compiled. They are for later, when we make smaller copies of the model. The starting measurement uses the full BF16 file only.
-
-The server command, written out, is:
-
-```bash
-llama-server \
-  -m models/qwen3-1.7b-bf16.gguf \
-  -c 8192 --jinja --webui \
-  -t 2 -tb 4 -np 1 \
-  --host 127.0.0.1 --port 8080
-```
-
-`--jinja` tells the server to use Qwen's official chat template, including thinking. `--webui` turns on the browser chat at `http://127.0.0.1:8080/`. That page is how a live demo will work later. The demo has to be a task that was not used for scoring.
-
----
-
-## 4. Why 8 GB runs out
-
-The model file is about 3.8 GB and stays in memory the whole time. On top of that, the KV cache adds about 112 KB for every token the current chat has read.
-
-| What is in memory | Size |
-|---|---|
-| The BF16 weight file | about 3.8 GB |
-| Notes kept per token (KV cache) | about 112 KB each |
-| An 8,192-token chat | about 0.9 GB of notes |
-| A 16,384-token chat | about 1.75 GB of notes |
-| A 32,768-token chat | about 3.5 GB of notes |
-
-The course handout's "official" starting context is 16,384 tokens. That fits, with the weights, in 8 GB. A 32,768-token chat plus the weights does not, once Linux is using memory too. The server that is actually running was started at 8,192 tokens. Raising it is possible later. It is not what this measurement is using.
-
-The 112 KB figure comes from the shape of Qwen3-1.7B: 28 layers, 8 key/value heads, 128 numbers wide, two bytes each, and both a key and a value. 2 × 28 × 8 × 128 × 2 bytes = 114,688 bytes, which is 112 KiB.
-
-```mermaid
-flowchart LR
-  subgraph board [8 GB on the Raspberry Pi 5]
-    W[Model file 3.8 GB]
-    K[Chat notes 112 KB per token]
-    O[Linux and the server]
-  end
-  W --- K --- O
-```
-
----
-
-## 5. What the course asks for, in order
+### What the course asks for, in order
 
 The handout wants a before-and-after story. First measure the plain setup. Then change one thing, measure again on the same exam, and keep the change only if it helps.
 
@@ -205,7 +273,7 @@ What every later change must still report: did the session succeed, were the cal
 
 ---
 
-## 6. How one question moves through the system
+### How one question moves through the system
 
 ```mermaid
 flowchart TB
@@ -237,7 +305,7 @@ The dotted arrow is the accuracy run. It uses the same weights and the same harn
 
 ---
 
-## 7. The questions and the two fake apps
+### The questions and the two fake apps
 
 The list of tools is `configs/tool_subset.json`.
 
@@ -257,7 +325,7 @@ The questions come from BFCL's long-chat set, file `BFCL_v4_multi_turn_long_cont
 
 The timed run on the Pi uses one short extra task, `long_extra_04_watchlist`. The user speaks twice. First: look up the transaction history, look at the watchlist, and add the symbol MSFT. Second: look at the watchlist again and confirm MSFT is there. MSFT is the ticker for Microsoft. The task is short on purpose. A longer trading task, `long_extra_03_fund_after_dump`, previously made the Pi read about 36,000 tokens. At about 1.4 tokens per second that is about 7 hours. The course note said to treat anything well above about 10,000 tokens as too long for this starting setup, and to leave those chats for the later speedups.
 
-### Why some tool replies are enormous
+#### Why some tool replies are enormous
 
 Long-context mode in TradingBot pads some replies with made-up extra records. The real answer is at the front. The padding is not saved into the account. It exists so the chat gets long.
 
@@ -290,7 +358,7 @@ The timed watchlist task is started without the long-padding switch. The cut sti
 
 ---
 
-## 8. The starting settings, one by one
+### The starting settings, one by one
 
 These live in `configs/baseline.yaml`. Later experiments change one row and say whether the change was kept.
 
@@ -327,7 +395,7 @@ A wrapper, `./scripts/sample_device.sh`, starts the power and temperature log be
 
 ---
 
-## 9. What gets written down
+### What gets written down
 
 | What | Everyday meaning | Where it comes from |
 |---|---|---|
@@ -354,7 +422,7 @@ The website keeps one card per run, named by date and time. The next run of the 
 
 ---
 
-## 10. What the 26 Nov run had shown when this was written
+### What the 26 Nov run had shown when this was written
 
 `./scripts/run_baseline.sh` started at 11:39 in the morning, Pakistan time, on 26 Nov 2026. The log folder is `results/baseline/history/2026-11-26T06-39-36Z` (`06:39` UTC is `11:39` PKT). At the time of writing, the watchlist task was still on its first reading. No score file existed yet. The 512 / 2,048 / 4,096 sweep had not started.
 
@@ -374,7 +442,7 @@ If the model asks for the three watchlist actions in one reply, the script can f
 
 ---
 
-## 11. What we will try afterwards
+### What we will try afterwards
 
 None of these have been run. The order follows the handout. FP16 is first because the course note pointed at it as the likely reason the starting speed is low.
 
@@ -405,9 +473,9 @@ Flash attention stays on its default unless a measurement shows the server actua
 
 ---
 
-## 12. Checklist
+### Checklist
 
-### Already in place
+#### Already in place
 
 - [x] llama.cpp built on this Pi, including the server, a one-shot chat tool, the quantizer, and the importance-matrix tool
 - [x] Qwen3-1.7B downloaded and saved as a BF16 GGUF, and the server is running that file
@@ -418,7 +486,7 @@ Flash attention stays on its default unless a measurement shows the server actua
 - [x] A log of watts, degrees, throttle, and server memory for the whole command
 - [x] A website that keeps runs by date
 
-### Still required before the Week 1 talk
+#### Still required before the Week 1 talk
 
 - [ ] Let the watchlist task and the three-length speed sweep finish
 - [ ] Report reading time, writing time, peak server memory, energy, and whether the chip throttled
@@ -426,7 +494,7 @@ Flash attention stays on its default unless a measurement shows the server actua
 - [ ] Score the 12 exam tasks on a host with this same file
 - [ ] Say in the talk that chats well above about 10,000 tokens are too slow for this starting setup, and are what the later experiments are for
 
-### After Week 1
+#### After Week 1
 
 - [ ] FP16, as the first speed comparison
 - [ ] Turn prefix reuse on, with the same chat template
@@ -438,21 +506,22 @@ Flash attention stays on its default unless a measurement shows the server actua
 
 ---
 
-## 13. A way to give the talk
+### A way to give the talk
 
-1. Start from Section 1. One small computer, one model, tools whose replies make the chat longer, and the whole chat is reread every time.
-2. Use Section 2 only when a word lands badly. The deck does not need every definition read aloud.
-3. Section 4 is the memory slide. The model file is 3.8 GB. The notes are 112 KB per token. A 32k chat does not fit. We are serving 8,192.
-4. Section 6 is the architecture slide. Walk one request: harness, server, fake app, and the power log beside it.
-5. Section 8 is the baseline slide. Full file, thinking on, Qwen's sampling, no reuse. Mention the funding task: without thinking, the model promised to add money and never called the tool.
-6. Section 7's padding story is the "why are the chats so long?" slide. Digits become tokens. Cutting the padding brings TradingBot back toward the length the handout describes.
-7. Section 10 is the only measured speed so far: about 0.53 token per second while the chip was at 93–95°C and throttled. Do not present it as the finished baseline.
-8. Section 11 is the "what is next" slide. Stop there. There are no quantization or caching results yet.
-9. Section 12 is the backup slide if someone asks what is finished.
+1. Part 1, the board. Name the Pi 5, 8 GB, 4 cores, and that watts and degrees come from the board itself.
+2. The memory picture in Part 1. The model file is 3.8 GB. The notes are 112 KB per token. A 32k chat does not fit. We are serving 8,192.
+3. Part 2, the programs. Two terminals: start the server, then run the baseline. Point at the program table only if someone asks which file does what.
+4. Part 3, one page. One model, tools whose replies make the chat longer, and the whole chat is reread every time.
+5. The request diagram. Walk one turn: harness, server, fake app, and the power log beside it.
+6. The starting settings. Full file, thinking on, Qwen's sampling, no reuse. Mention the funding task: without thinking, the model promised to add money and never called the tool.
+7. The padding story. Digits become tokens. Cutting the padding brings TradingBot back toward the length the handout describes.
+8. The 26 Nov snapshot: about 0.53 token per second while the chip was at 93–95°C and throttled. Do not present it as the finished baseline.
+9. The "what is next" diagram. Stop there. There are no quantization or caching results yet.
+10. The checklist is the backup slide if someone asks what is finished.
 
 ---
 
-## 14. References
+### References
 
 Each item says what it is, then the citation.
 
@@ -462,4 +531,4 @@ Each item says what it is, then the citation.
 4. **A paper about teaching small Qwen models to use tools, relevant if we train a small add-on after quantization.** Alexander Kovalenko and Artem Redchych. *Small Agents Should Know What Their Tools Do.* arXiv:2610.35981, 2026. <https://arxiv.org/abs/2610.35981>.
 5. **The method that paper uses for the add-on (LoRA: train a few extra low-rank matrices instead of all 1.7 billion weights).** Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. *LoRA: Low-Rank Adaptation of Large Language Models.* arXiv:2106.09685, 2021. <https://arxiv.org/abs/2106.09685>.
 6. **The board.** Raspberry Pi Ltd. *Raspberry Pi 5.* <https://www.raspberrypi.com/products/raspberry-pi-5/>.
-7. **The assignment.** AI624 course manual, Fall 2026, Track A, Project A1. [Project_Description_AI624_2026.pdf](Project_Description_AI624_2026.pdf). The uncapped and capped token counts in Section 7 are from the course note about TradingBot's padding. They are not a finished measurement from this repository. Our local check is the 7,983-character stock quote.
+7. **The assignment.** AI624 course manual, Fall 2026, Track A, Project A1. [Project_Description_AI624_2026.pdf](Project_Description_AI624_2026.pdf). The uncapped and capped token counts in the questions section are from the course note about TradingBot's padding. They are not a finished measurement from this repository. Our local check is the 7,983-character stock quote.
