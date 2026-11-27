@@ -225,12 +225,12 @@
   <script>
     const TABS = [
       ["overview", "Overview"],
-      ["long_task", "Long task"],
       ["held_out", "Held-out"],
       ["sweep", "Sweep"],
     ];
     const KIND = {
       long_task: "Long task",
+      harness: "Harness",
       held_out: "Held-out",
       sweep: "Sweep",
       power: "Power",
@@ -250,6 +250,7 @@
       tab: (location.hash || "#overview").slice(1),
       picked: {},
     };
+    if (state.tab === "long_task") state.tab = "held_out";
     if (!TABS.some(([id]) => id === state.tab)) state.tab = "overview";
 
     const $ = (id) => document.getElementById(id);
@@ -284,6 +285,16 @@
 
     function joules(value) {
       return value === null || value === undefined ? "—" : `${num(value, 1)} J`;
+    }
+
+    function sampleEvery(intervalS) {
+      const seconds = Number(intervalS);
+      if (!Number.isFinite(seconds) || seconds <= 0) return "10 min";
+      if (seconds >= 60) {
+        const minutes = seconds / 60;
+        return `${num(minutes, minutes >= 10 || Number.isInteger(minutes) ? 0 : 1)} min`;
+      }
+      return `${num(seconds, 0)} s`;
     }
 
     function celsius(value) {
@@ -414,7 +425,7 @@
     }
 
     function headlineStats(runs, prior) {
-      const kinds = ["long_task", "held_out", "sweep"];
+      const kinds = ["held_out", "sweep"];
       const picks = kinds.map((kind) => {
         const ofKind = runs.filter((run) => run.kind === kind).sort(byDate);
         return ofKind.length ? ofKind[ofKind.length - 1] : null;
@@ -581,7 +592,7 @@
         </svg>
         <p class="figure-caption">Power and temperature trace</p>
         <div class="legend"><span><i class="swatch" style="background:${CHART.power}"></i>power</span><span><i class="swatch" style="background:${CHART.temp}"></i>temperature</span></div>
-        <p class="note">Power (W) and temperature (°C) sampled about every ${num((device && device.interval_s) || 1, 0)}s for this run. Source: vcgencmd rail power and measure_temp.</p>
+        <p class="note">Power (W) and temperature (°C) sampled about every ${sampleEvery(device && device.interval_s)} for this run. Source: vcgencmd rail power and measure_temp.</p>
       </figure>`;
     }
 
@@ -667,10 +678,7 @@
     }
 
     function latencyTrend(runs) {
-      const kinds = [
-        ["long_task", "Long task", CHART.prefill],
-        ["held_out", "Held-out", CHART.decode],
-      ];
+      const kinds = [["held_out", "Held-out", CHART.decode]];
       const series = kinds.map(([kind, name, color]) => ({
         name,
         color,
@@ -739,8 +747,8 @@
 
     function steps() {
       return `<section class="panel"><h2>Record the next run</h2>
-        <p class="note">Leave <code>./scripts/start_server.sh</code> running, then in a second terminal run <code>./scripts/run_baseline.sh</code>. It records the long task, the held-out sample, and the sweep, with power and temperature beside each one, and writes <code>docs/data/dashboard.json</code>.</p>
-        <p class="note">Commit that file and push to update this page. Run the script again after a change; each run is kept by date.</p></section>`;
+        <p class="note">Leave <code>./scripts/start_server.sh</code> running, then in a second terminal run <code>./scripts/run_baseline.sh</code>. It records one held-out harness task, the prefill/decode sweep, and power/temperature beside each step, then writes <code>docs/data/dashboard.json</code>.</p>
+        <p class="note">With <code>export</code> enabled in <code>baseline.yaml</code>, <code>run_baseline.sh</code> refreshes <code>dashboard.json</code> after each held-out session and after the sweep finishes. Commit and push to update this page.</p></section>`;
     }
 
     function render(data) {

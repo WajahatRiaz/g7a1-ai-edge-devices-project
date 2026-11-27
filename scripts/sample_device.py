@@ -29,6 +29,28 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DIR = ROOT / "results" / "baseline"
+DEFAULT_CONFIG = ROOT / "configs" / "baseline.yaml"
+DEFAULT_INTERVAL_S = 600.0
+
+
+def configured_interval_s(config_path: Path | None = None) -> float:
+    env = os.environ.get("DEVICE_SAMPLE_INTERVAL_S")
+    if env:
+        return float(env)
+    path = config_path or DEFAULT_CONFIG
+    if not path.is_file():
+        return DEFAULT_INTERVAL_S
+    try:
+        import yaml
+
+        with open(path, encoding="utf-8") as handle:
+            cfg = yaml.safe_load(handle) or {}
+        value = (cfg.get("device") or {}).get("interval_s")
+        if value is not None:
+            return float(value)
+    except Exception:
+        pass
+    return DEFAULT_INTERVAL_S
 
 TRACE_NAME = "device_trace.jsonl"
 SUMMARY_NAME = "device.json"
@@ -300,7 +322,7 @@ def summarize_trace(rows: list[dict], *, interval_s: float | None = None) -> dic
     if not rss:
         notes.append("llama-server was not running, so peak RSS is empty.")
     if not is_pi:
-        notes.append("Host RSS is a debug sample. Report memory, energy, and thermal from the Pi.")
+        notes.append("This project targets Raspberry Pi 5; non-Pi samples are for debugging only.")
     if during:
         notes.append("Throttle bits were active during the recording: " + ", ".join(during) + ".")
     elif last.get("throttled_since_boot"):
@@ -444,10 +466,10 @@ def infer_kind(command: list[str]) -> str:
     if "--split" in command:
         index = command.index("--split")
         split = command[index + 1] if index + 1 < len(command) else ""
-        if split == "long_extra":
-            return "long_task"
         if split == "test":
             return "held_out"
+        if split == "long_extra":
+            return "harness"
         if split == "train":
             return "train"
     if "run_harness" in text:
@@ -530,10 +552,10 @@ def cmd_wrap(args: argparse.Namespace) -> None:
     if kind == "power":
         if (run_dir / "characterization.json").is_file():
             kind = "sweep"
-        elif (run_dir / "long_extra").is_dir():
-            kind = "long_task"
         elif (run_dir / "test").is_dir():
             kind = "held_out"
+        elif (run_dir / "long_extra").is_dir():
+            kind = "harness"
         elif (run_dir / "train").is_dir():
             kind = "train"
     archive_directory(
@@ -657,11 +679,16 @@ def main() -> None:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     run = sub.add_parser("run", parents=[common], help="sample until SIGTERM")
-    run.add_argument("--interval", type=float, default=1.0)
+    run.add_argument(
+        "--interval",
+        type=float,
+        default=None,
+        help=f"seconds between samples (default: device.interval_s in baseline.yaml, {DEFAULT_INTERVAL_S:g})",
+    )
     run.set_defaults(func=cmd_run)
 
     start = sub.add_parser("start", parents=[common], help="start the sampler in the background")
-    start.add_argument("--interval", type=float, default=1.0)
+    start.add_argument("--interval", type=float, default=None)
     start.set_defaults(func=cmd_start)
 
     stop = sub.add_parser("stop", parents=[common], help="stop the sampler and write the summary")
@@ -675,11 +702,13 @@ def main() -> None:
     status.set_defaults(func=cmd_status)
 
     wrap = sub.add_parser("wrap", parents=[common], help="sample one command and archive it by date")
-    wrap.add_argument("--interval", type=float, default=1.0)
+    wrap.add_argument("--interval", type=float, default=None)
     wrap.add_argument("command", nargs=argparse.REMAINDER)
     wrap.set_defaults(func=cmd_wrap)
 
     args = parser.parse_args()
+    if hasattr(args, "interval") and args.interval is None:
+        args.interval = configured_interval_s()
     args.func(args)
 
 

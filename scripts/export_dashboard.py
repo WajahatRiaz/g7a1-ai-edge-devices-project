@@ -181,7 +181,7 @@ def main() -> None:
     print(
         f"runs={len(runs)} " + " ".join(
             f"{kind}={sum(1 for run in runs if run.get('kind') == kind)}"
-            for kind in ("long_task", "held_out", "sweep")
+            for kind in ("held_out", "sweep", "harness")
         )
     )
 

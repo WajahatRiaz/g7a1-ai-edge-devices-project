@@ -24,7 +24,7 @@ There is no separate graphics card and no external power meter. The model runs o
 
 | What we read | Command | Plain meaning |
 |---|---|---|
-| Power | `vcgencmd pmic_read_adc` | Voltage times current on each supply rail that reports both. About once a second during a run |
+| Power | `vcgencmd pmic_read_adc` | Voltage times current on each supply rail that reports both. Default sample every 10 minutes during a run (`device.interval_s`) |
 | Temperature | `vcgencmd measure_temp` | Degrees Celsius of the main chip |
 | Throttle | `vcgencmd get_throttled` | Whether the chip has cut its own speed |
 
@@ -32,7 +32,7 @@ There is no separate graphics card and no external power meter. The model runs o
 
 Rails named `EXT5V` and `BATT` report a voltage and no current. They are left out of the watt sum. A watt figure needs both voltage and current.
 
-A second computer, called the **host** in the course notes, is allowed for one job only: scoring whether the model got the exam questions right, using the same model file. Speed, memory, heat, and power stay on this Pi.
+This repository is **Pi-only**: inference, harness sessions, accuracy scoring, and device metrics all run on the Raspberry Pi 5. The course PDF permits scoring on another machine; this project does not use that path.
 
 ### What has to fit in 8 GB
 
@@ -155,11 +155,11 @@ The second terminal, once the server says it is listening, runs the measurement:
 | `scripts/start_server.sh` | Start the model and leave it running |
 | `scripts/chat_once.sh` | Ask one question in the terminal. This is not a multi-step tool chat |
 | `scripts/run_harness.py` | Play a saved task: send the chat, run tools, write timings. `run_harness.sh` is the same thing |
-| `scripts/run_baseline.sh` | The Week 1 measurement: one short task, then a reading-speed sweep, with power logging |
+| `scripts/run_baseline.sh` | The Week 1 measurement: one held-out harness task, then a reading-speed sweep, with power logging |
 | `scripts/characterize_baseline.py` | The sweep alone: dummy prompts of 512, 2,048, and 4,096 tokens |
-| `scripts/sample_device.py` | Read watts, degrees, throttle, and server memory about once a second. `sample_device.sh` wraps another command with that log |
+| `scripts/sample_device.py` | Read watts, degrees, throttle, and server memory on `device.interval_s` (default 10 minutes). `sample_device.sh` wraps another command with that log |
 | `scripts/export_dashboard.py` | Turn the logs into `docs/data/dashboard.json`. `export_dashboard.sh` is the same thing |
-| `scripts/run_host_accuracy.sh` | Score all 12 exam tasks. Meant for a normal computer, not for timing on the Pi |
+| `scripts/run_test_accuracy.sh` | Score all 12 exam tasks on the Pi (wraps the harness with device logging) |
 | `src/a1_agent/client.py` | The code that sends a chat to llama-server |
 | `src/a1_agent/schemas.py` | Loads the 30 tool descriptions |
 | `src/a1_agent/backends.py` | Runs the fake trading account and inbox |
@@ -212,8 +212,7 @@ flowchart LR
 
 Two jobs are measured separately:
 
-- **Speed, memory, heat, and power** are measured on the Pi. That is the point of the course.
-- **Did it get the tasks right?** The full exam can be scored on a normal computer, using the same model file and the same programs. Timing that exam on the Pi would take many hours.
+- **Speed, memory, heat, power, and accuracy** are measured on this Pi. Scoring all 12 exam tasks on the board can take many hours (`./scripts/run_test_accuracy.sh`).
 
 ---
 
@@ -286,12 +285,13 @@ flowchart TB
     C -->|yes| B[TradingBot or the inbox runs]
     B --> H
     C -->|no| E[This turn is over]
-    V[Once a second: watts, degrees, memory] --> J[A log line]
+    V[Device sample: watts, degrees, memory] --> J[A log line]
     H --> J
+    H --> T[Full test split optional]
+    T --> J
   end
   J --> D[A JSON file for the website]
   D --> P[The public dashboard]
-  H -.->|same model file, on a normal computer| A[Score all 12 exam tasks]
 ```
 
 Step by step:
@@ -302,7 +302,7 @@ Step by step:
 4. If there is a tool call, the harness checks the name and the required arguments, runs the fake app, and appends the app's reply.
 5. The next request includes that reply. The old text is sent again.
 
-The dotted arrow is the accuracy run. It uses the same weights and the same harness. It does not have to be timed on the Pi. The command is `./scripts/run_host_accuracy.sh`.
+For all 12 exam tasks on the Pi, use `./scripts/run_test_accuracy.sh` (long). The default baseline uses one held-out task plus the characterization sweep.
 
 ---
 
@@ -324,7 +324,7 @@ The questions come from BFCL's long-chat set, file `BFCL_v4_multi_turn_long_cont
 | Exam | 12 | `data/tasks/test.jsonl` | Scored, and not used to tune |
 | Extra long tasks we wrote | 5 | `data/tasks/long_extra.jsonl` | Meant to push length. Two of them are inside the exam because they hide an early fact |
 
-The timed run on the Pi uses one short extra task, `long_extra_04_watchlist`. The user speaks twice. First: look up the transaction history, look at the watchlist, and add the symbol MSFT. Second: look at the watchlist again and confirm MSFT is there. MSFT is the ticker for Microsoft. The task is short on purpose. A longer trading task, `long_extra_03_fund_after_dump`, previously made the Pi read about 36,000 tokens. At about 1.4 tokens per second that is about 7 hours. The course note said to treat anything well above about 10,000 tokens as too long for this starting setup, and to leave those chats for the later speedups.
+The default timed run on the Pi uses one **held-out test** task (`multi_turn_long_context_118` in `configs/baseline.yaml`), matching the PDF requirement to run the harness on the test split before optimization. The five tasks in `long_extra.jsonl` remain for later 16k–32k experiments; `long_extra_03_fund_after_dump` previously made the Pi read about 36,000 tokens (~7 h at ~1.4 tok/s). Treat workloads well above ~10,000 tokens as out of scope for the BF16 baseline until FP16 or prompt caching land.
 
 #### Why some tool replies are enormous
 
@@ -387,10 +387,10 @@ sequenceDiagram
   H->>S: The same chat again, with that result stuck on the end
 ```
 
-The Pi script that measures this starting point is `./scripts/run_baseline.sh` (steps are listed under `pi_scenarios` in `configs/baseline.yaml` and can be run separately with `--only session`, `--only characterize`, or `--only export`). By default it does two things, aimed at about 10,000 tokens of work altogether:
+The Pi script that measures this starting point is `./scripts/run_baseline.sh` (steps are listed under `pi_scenarios` in `configs/baseline.yaml` and can be run separately with `--only session`, `--only characterize`, or `--only export`). By default it does two things:
 
-1. The short watchlist task above.
-2. A speed sweep: feed the model a dummy prompt of 512 tokens, then 2,048, then 4,096, and let it write 32 tokens each time. That separates "how long does reading take?" from the complications of a real tool chat.
+1. One held-out harness task (`session`: test split, device trace).
+2. A speed sweep (Task 3): dummy prompts of 512, 2,048, and 4,096 tokens with 32-token decode, separating reading from real tool chat.
 
 A wrapper, `./scripts/sample_device.sh`, starts the power and temperature log before each of those and stops it when the command exits. `./scripts/export_dashboard.sh` copies the summary into the file the website reads.
 
@@ -489,10 +489,10 @@ Flash attention stays on its default unless a measurement shows the server actua
 
 #### Still required before the Week 1 talk
 
-- [ ] Let the watchlist task and the three-length speed sweep finish
+- [ ] Finish the default held-out harness task and the three-length speed sweep
 - [ ] Report reading time, writing time, peak server memory, energy, and whether the chip throttled
 - [ ] Do the bandwidth check once those writing speeds exist
-- [ ] Score the 12 exam tasks on a host with this same file
+- [ ] Score the 12 exam tasks on the Pi (`./scripts/run_test_accuracy.sh`)
 - [ ] Say in the talk that chats well above about 10,000 tokens are too slow for this starting setup, and are what the later experiments are for
 
 #### After Week 1

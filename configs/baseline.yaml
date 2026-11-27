@@ -10,7 +10,7 @@ context_size_max: 16384
 server:
   host: 127.0.0.1
   port: 8080
-  threads: 4      # null => nproc; keep modest on shared 16GB hosts
+  threads: 4      # Pi 5: modest -t; see start_server.sh
   jinja: true
   # llama-server --timeout (default upstream is 3600 s and will kill long prefills).
   read_write_timeout_s: 86400
@@ -40,14 +40,19 @@ tasks:
   test: data/tasks/test.jsonl
   long_extra: data/tasks/long_extra.jsonl
 metrics_dir: results/baseline
+# Power, temperature, and RSS while sample_device.sh wraps a benchmark.
+device:
+  interval_s: 600
 # Pi baseline measurement scenarios (./scripts/run_baseline.sh). Toggle enabled or
 # override defaults; use CLI --only session|characterize|export to run one step.
+# When export is enabled, each finished session/characterize step refreshes the dashboard
+# immediately (no need to wait for the other measurement).
 pi_scenarios:
   session:
     enabled: true
     sample_device: true
-    split: long_extra
-    task_id: long_extra_04_watchlist
+    split: test
+    task_id: multi_turn_long_context_118
   characterize:
     enabled: true
     sample_device: true
@@ -58,7 +63,6 @@ pi_scenarios:
 # re-sends much more than that (about 36k tokens at 1.4 tok/s is ~7 hours)
 # is prohibitively long for the baseline and is what later experiments
 # (FP16, prompt cache, quantization) should make feasible.
-# Full held-out accuracy uses the same weights on a host, not the Pi.
 pi_token_budget: 10000
 flash_attn: auto
 first_improvement: >
@@ -66,6 +70,6 @@ first_improvement: >
   conversion is the first improvement to list: the Pi has faster FP16
   instructions. Prompt caching is the next serving change. Flash attention
   is llama-server's default (--flash-attn auto) and is left on.
-host_note: >
-  Latency, memory, and power for a short session are measured on the Pi.
-  Score the full test split on a host with the same GGUF and pipeline.
+pi_note: >
+  All inference, harness sessions, accuracy scoring, latency, memory, and power
+  runs on this Raspberry Pi 5 with the same GGUF and pipeline.

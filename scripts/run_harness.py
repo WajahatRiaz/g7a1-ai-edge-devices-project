@@ -50,14 +50,14 @@ def main() -> None:
         default=False,
         help=(
             "Use BFCL long-context backend dumps (huge TradingBot history). "
-            "Off by default — can OOM a 16GB host with BF16 + large -c."
+            "Off by default — can OOM the Pi with BF16 + very large -c."
         ),
     )
     parser.add_argument(
         "--no-long-context",
         dest="long_context",
         action="store_false",
-        help="Disable verbose long-context tool dumps (default; safer on host)",
+        help="Disable verbose long-context tool dumps (default; safer on the Pi)",
     )
     args = parser.parse_args()
 

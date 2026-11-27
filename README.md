@@ -32,7 +32,7 @@ On-device multi-turn tool calling with Qwen3 through [llama.cpp](https://github.
 | **Tools** | ~20–30 BFCL multi-turn functions, long-context mode, must include TradingBot |
 | **Out of scope** | Multi-agent orchestration; model served from another machine |
 
-Latency, memory, and power are measured on this Raspberry Pi 5. Task accuracy for the full held-out split is scored on a host with the same weights and pipeline. The talk outline, diagrams, and references are in [docs/Presentation.md](docs/Presentation.md).
+Inference, latency, memory, power, and held-out accuracy are measured on this Raspberry Pi 5. The talk outline, diagrams, and references are in [docs/Presentation.md](docs/Presentation.md).
 
 ### Baseline rules (before any optimization)
 
@@ -43,7 +43,7 @@ Latency, memory, and power are measured on this Raspberry Pi 5. Task accuracy fo
 - Thinking on, which is the Qwen chat-template default. Sampling is Qwen's thinking-mode setting: temperature 0.6, top-p 0.95, top-k 20. Non-thinking mode skipped `fund_account` after login.
 - Flash attention left at llama-server's default, `--flash-attn auto`
 
-`llama-server` caches prompt prefixes by default. The baseline client must send `cache_prompt: false`. BF16 stays the baseline. If decode stays near 1.4 tok/s, an FP16 conversion is the first improvement to report, because the Pi has faster FP16 instructions. Do not replace the baseline weights with that conversion. Prompt caching is the next serving change. Score the full test split on a host with the same weights.
+`llama-server` caches prompt prefixes by default. The baseline client must send `cache_prompt: false`. BF16 stays the baseline. If decode stays near 1.4 tok/s, an FP16 conversion is the first improvement to report, because the Pi has faster FP16 instructions. Do not replace the baseline weights with that conversion. Prompt caching is the next serving change. Score the full test split on the Pi with `./scripts/run_test_accuracy.sh` when you are ready for a long run.
 
 ---
 
@@ -92,7 +92,7 @@ Each change is applied on top of the last accepted configuration. Every step is 
 
 ### 3.1 Week 1 checklist
 
-Legend: `[x]` done · `[ ]` still open. Device metrics come from this Raspberry Pi 5. Accuracy for the full test split is a host run with the same weights.
+Legend: `[x]` done · `[ ]` still open. All metrics and accuracy scoring use this Raspberry Pi 5.
 
 #### Infrastructure
 
@@ -118,13 +118,13 @@ Legend: `[x]` done · `[ ]` still open. Device metrics come from this Raspberry 
 - [x] Per-turn token and timing logs, call validity
 - [x] `cache_prompt: false`, schemas in the system prompt
 - [x] Thinking on, with Qwen thinking-mode sampling (temperature 0.6, top-p 0.95, top-k 20)
-- [ ] A finished Pi session log for `long_extra_04_watchlist` under that baseline (run `2026-11-26T06-39-36Z` was still in its first prefill when this checklist was written)
+- [ ] A finished Pi harness log on a held-out test task (`pi_scenarios.session` in `baseline.yaml`, default `multi_turn_long_context_118`)
 
 #### Task 3 — baseline characterization
 
 - [ ] Prefill/decode sweep at 512, 2048, and 4096 (`scripts/characterize_baseline.py`), with power and temperature
 - [ ] Peak memory, bandwidth-bound decode check, and a thermal summary for that run
-- [ ] Full held-out test split on a host (`./scripts/run_host_accuracy.sh`)
+- [ ] Full held-out test split on the Pi (`./scripts/run_test_accuracy.sh`)
 - [ ] Sessions well above about 10k processed tokens, once FP16 or prompt caching makes them feasible
 
 ---
@@ -165,8 +165,7 @@ python scripts/prepare_tasks.py
 
 ### 5.1 Hardware
 
-- **This machine:** Raspberry Pi 5 Model B Rev 1.0, 8 GB, 4 cores. `llama.cpp` is built and run here.
-- **Accuracy host:** same GGUF and `./scripts/run_host_accuracy.sh`. Do not time that split on the Pi.
+- **This machine:** Raspberry Pi 5 Model B Rev 1.0, 8 GB, 4 cores. `llama.cpp`, the harness, and accuracy scoring all run here.
 
 ### 5.2 System packages
 
@@ -249,7 +248,7 @@ flowchart TD
   C --> D[llama-server BF16 on the Pi]
   D --> E[run_baseline.sh about 10k tokens]
   E --> F[export_dashboard.sh]
-  D --> G[run_host_accuracy.sh on a host]
+  D --> G[run_test_accuracy.sh optional full test split]
 ```
 
 ### 7.1 Download and convert BF16 GGUF
@@ -320,12 +319,12 @@ There is **one baseline configuration**; you measure it with **several Pi scenar
 
 | Scenario | PDF / purpose | Pi script entry |
 |----------|----------------|-----------------|
-| **session** | Real tool-calling harness, device metrics | `run_baseline.sh --only session` → `run_harness.sh` |
+| **session** | One held-out test task through the harness (+ device metrics) | `run_baseline.sh --only session` → `run_harness.sh` |
 | **characterize** | Task 3 prefill/decode at ≥3 lengths | `run_baseline.sh --only characterize` → `characterize_baseline.sh` |
-| **export** | Refresh GitHub Pages data | `run_baseline.sh --only export` → `export_dashboard.sh` |
-| **Held-out exam** | Session success on test split (not Pi timing) | `./scripts/run_host_accuracy.sh` on a **host** |
+| **export** | Refresh GitHub Pages data after each measurement step (or alone) | `export_dashboard.sh` via `run_baseline.sh` |
+| **Held-out exam** | Full test split (long on Pi) | `./scripts/run_test_accuracy.sh` |
 
-`long_extra_03_fund_after_dump` once processed about 36k tokens at ~1.4 tok/s (~7 h) on BF16 with a stateless client. Prefer the default short session (`long_extra_04_watchlist`) for Pi timing until FP16 or prompt caching land. Harness defaults to **no** BFCL long dumps (`--long-context` is opt-in).
+`long_extra_03_fund_after_dump` once processed about 36k tokens at ~1.4 tok/s (~7 h) on BF16 with a stateless client. The default Pi baseline uses one **held-out test** task for harness timing (PDF §2.1 baseline on the test split); use `long_extra` tasks manually when probing 16k–32k sessions. Harness defaults to **no** BFCL long dumps (`--long-context` is opt-in).
 
 #### `pi_scenarios` in `baseline.yaml`
 
@@ -336,8 +335,8 @@ pi_scenarios:
   session:
     enabled: true
     sample_device: true    # wrap in sample_device.sh (power, temp, RSS)
-    split: long_extra
-    task_id: long_extra_04_watchlist
+    split: test
+    task_id: multi_turn_long_context_118
   characterize:
     enabled: true
     sample_device: true
@@ -358,7 +357,7 @@ pi_scenarios:
 ./scripts/run_baseline.sh --only session --only characterize   # no export
 ./scripts/run_baseline.sh --no-session --only characterize     # explicit skips
 ./scripts/run_baseline.sh --no-device --only session # harness without power trace
-./scripts/run_baseline.sh --only session --task-id long_extra_04_watchlist
+./scripts/run_baseline.sh --only session --split test --task-id multi_turn_long_context_118
 ./scripts/run_baseline.sh --only characterize --lengths 512,2048
 ./scripts/run_baseline.sh --config configs/baseline.yaml
 ./scripts/run_baseline.sh --help
@@ -392,14 +391,15 @@ The script checks `llama-server` health before **session** and **characterize**;
 Logs land under `results/baseline/`. Direct harness or sweep without the baseline driver:
 
 ```bash
-./scripts/sample_device.sh -- ./scripts/run_harness.sh --split long_extra --task-id long_extra_04_watchlist
+./scripts/sample_device.sh -- ./scripts/run_harness.sh --split test --task-id multi_turn_long_context_118
 ./scripts/sample_device.sh -- ./scripts/characterize_baseline.sh --lengths 512,2048,4096
 ```
 
-#### Host accuracy (same stack, not Pi timing)
+#### Full test split on the Pi (optional, long)
 
 ```bash
-./scripts/run_host_accuracy.sh
+./scripts/run_test_accuracy.sh
+# or one task: ./scripts/sample_device.sh -- ./scripts/run_harness.sh --split test --task-id …
 ```
 
 #### Long HTTP timeouts (Pi BF16 prefill)
@@ -443,7 +443,7 @@ When device tree reports `cooling_fan` **disabled**, add the lines in [docs/pi5-
 
 **Every change reports:** session success, call validity, per-turn latency (prefill / decode / tool), cold and warm time to first call, peak memory, energy per session, thermal state.
 
-`./scripts/sample_device.sh -- <command>` samples the Pi for the whole command, about once a second, and archives the trace under `results/baseline/history/<timestamp>/`. It sums paired PMIC rails (`vcgencmd pmic_read_adc`), reads `measure_temp` and `get_throttled`, and records `llama-server` peak RSS. A run with `throttled_now` set (`freq_capped` or `throttled`) is a throttled run. Sticky `0x80000` (`soft_temp_limit_occurred`) alone is history since boot, not a reason to discard the sample.
+`./scripts/sample_device.sh -- <command>` samples the Pi for the whole command (default every 10 minutes; see `device.interval_s` in `configs/baseline.yaml`) and archives the trace under `results/baseline/history/<timestamp>/`. It sums paired PMIC rails (`vcgencmd pmic_read_adc`), reads `measure_temp` and `get_throttled`, and records `llama-server` peak RSS. A run with `throttled_now` set (`freq_capped` or `throttled`) is a throttled run. Sticky `0x80000` (`soft_temp_limit_occurred`) alone is history since boot, not a reason to discard the sample.
 
 Manual equivalents:
 
@@ -476,7 +476,7 @@ scripts/
   start_server.sh                     # llama-server on the Pi
   run_baseline.sh                     # Pi baseline scenarios (session / characterize / export)
   pi_cooling_check.sh                 # Pi 5 fan device-tree / throttling hints
-  run_host_accuracy.sh                # full test split, for a host
+  run_test_accuracy.sh                # full test split on the Pi (device trace)
   sample_device.sh                    # power, temperature, RSS for one command
   export_dashboard.sh                 # results/baseline/history → docs/data
   run_harness.py                      # multi-turn loop vs llama-server

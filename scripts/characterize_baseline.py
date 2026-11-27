@@ -3,7 +3,7 @@
 Baseline characterization helpers (Task 3).
 
 Measure prefill and decode at several prompt lengths via llama-server.
-On the Pi, scripts/sample_device.sh records power, temperature, and memory
+On the Pi, scripts/sample_device.sh records power, temperature, and memory (default every 10 min)
 around this sweep.
 """
 
@@ -113,7 +113,7 @@ def main() -> None:
         )
         row["requested_tokens_approx"] = n
         row["cache_prompt"] = args.cache_prompt
-        # Pi-only fields left null on the host.
+        # Filled when characterize runs inside sample_device.sh on the Pi.
         row["peak_memory_bytes"] = None
         row["energy_j"] = None
         row["temp_c"] = None
@@ -131,7 +131,7 @@ def main() -> None:
     with open(out, "w", encoding="utf-8") as f:
         json.dump(
             {
-                "host_note": cfg.get("host_note"),
+                "pi_note": cfg.get("pi_note"),
                 "cache_prompt": args.cache_prompt,
                 "context_size": cfg["context_size"],
                 "measurements": rows,

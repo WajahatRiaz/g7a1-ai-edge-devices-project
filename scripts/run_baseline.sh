@@ -3,11 +3,11 @@
 # already be running. Run one scenario or all enabled steps from the YAML.
 #
 #   ./scripts/run_baseline.sh --only characterize
-#   ./scripts/run_baseline.sh --only session --task-id long_extra_04_watchlist
+#   ./scripts/run_baseline.sh --only session --split test --task-id multi_turn_long_context_118
 #   ./scripts/run_baseline.sh --no-export
 #   ./scripts/run_baseline.sh --no-device --only session
 #
-# Full held-out accuracy: ./scripts/run_host_accuracy.sh (host, not Pi timing).
+# Full held-out test split on the Pi: ./scripts/run_test_accuracy.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,7 +20,7 @@ Usage: ./scripts/run_baseline.sh [options]
 Pi baseline scenarios (see configs/baseline.yaml → pi_scenarios):
   session       Tool-calling harness + optional device trace
   characterize  Prefill/decode sweep + optional device trace
-  export        Update docs/data/dashboard.json from results/history
+  export        Refresh docs/data/dashboard.json (after each step, or alone)
 
 Options:
   --only SCENARIO     Run only this scenario (repeatable; disables other steps)
@@ -160,8 +160,8 @@ export = pi.get("export") or {}
 print(
     "true" if sess.get("enabled", True) else "false",
     "true" if sess.get("sample_device", True) else "false",
-  sess.get("split", "long_extra"),
-  sess.get("task_id", "long_extra_04_watchlist"),
+  sess.get("split", "test"),
+  sess.get("task_id", "multi_turn_long_context_118"),
     "true" if char.get("enabled", True) else "false",
     "true" if char.get("sample_device", True) else "false",
   char.get("lengths", "512,2048,4096"),
@@ -208,11 +208,21 @@ run_wrapped() {
   fi
 }
 
+export_dashboard() {
+  ./scripts/export_dashboard.sh
+  echo "Wrote docs/data/dashboard.json"
+}
+
+STANDALONE_EXPORT=false
+if [[ "${RUN_EXPORT}" == true && "${RUN_SESSION}" != true && "${RUN_CHARACTERIZE}" != true ]]; then
+  STANDALONE_EXPORT=true
+fi
+
 step=0
 total=0
 [[ "${RUN_SESSION}" == true ]] && total=$((total + 1))
 [[ "${RUN_CHARACTERIZE}" == true ]] && total=$((total + 1))
-[[ "${RUN_EXPORT}" == true ]] && total=$((total + 1))
+[[ "${STANDALONE_EXPORT}" == true ]] && total=$((total + 1))
 
 if [[ "${total}" -eq 0 ]]; then
   echo "No scenarios selected. Use --only, --session, --characterize, or --export." >&2
@@ -227,6 +237,10 @@ if [[ "${RUN_SESSION}" == true ]]; then
     ./scripts/run_harness.sh \
     --split "${SESSION_SPLIT}" \
     --task-id "${SESSION_TASK}"
+  if [[ "${RUN_EXPORT}" == true ]]; then
+    echo "  → export dashboard (held-out run)"
+    export_dashboard
+  fi
 fi
 
 if [[ "${RUN_CHARACTERIZE}" == true ]]; then
@@ -236,16 +250,19 @@ if [[ "${RUN_CHARACTERIZE}" == true ]]; then
     ./scripts/characterize_baseline.sh \
     --config "${CONFIG}" \
     --lengths "${CHAR_LENGTHS}"
+  if [[ "${RUN_EXPORT}" == true ]]; then
+    echo "  → export dashboard (sweep run)"
+    export_dashboard
+  fi
 fi
 
-if [[ "${RUN_EXPORT}" == true ]]; then
+if [[ "${STANDALONE_EXPORT}" == true ]]; then
   step=$((step + 1))
   echo "${step}/${total} export dashboard"
-  ./scripts/export_dashboard.sh
-  echo "Wrote docs/data/dashboard.json"
+  export_dashboard
 fi
 
 echo "Done. Scenarios: session=${RUN_SESSION} characterize=${RUN_CHARACTERIZE} export=${RUN_EXPORT}"
 if [[ "${RUN_SESSION}" == true ]]; then
-  echo "Held-out accuracy (host): ./scripts/run_host_accuracy.sh"
+  echo "Full test split on Pi: ./scripts/run_test_accuracy.sh"
 fi
