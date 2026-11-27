@@ -52,13 +52,16 @@ pi_scenarios:
     enabled: true
     sample_device: true
     split: test
-    task_id: multi_turn_long_context_118
+    limit: 1
+    # Optional: set task_id to pin one task instead of the first N from the split
+    # task_id: multi_turn_long_context_118
   characterize:
     enabled: true
     sample_device: true
     lengths: "512,2048,4096"
   export:
     enabled: true
+    git_push: true
 # Pi timing stays near 10k tokens processed. A stateless BF16 session that
 # re-sends much more than that (about 36k tokens at 1.4 tok/s is ~7 hours)
 # is prohibitively long for the baseline and is what later experiments

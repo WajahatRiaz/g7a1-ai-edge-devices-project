@@ -3,7 +3,8 @@
 # already be running. Run one scenario or all enabled steps from the YAML.
 #
 #   ./scripts/run_baseline.sh --only characterize
-#   ./scripts/run_baseline.sh --only session --split test --task-id multi_turn_long_context_118
+#   ./scripts/run_baseline.sh --only session --limit 1
+#   Full run order: session (harness) → characterize (sweep) → export after each step
 #   ./scripts/run_baseline.sh --no-export
 #   ./scripts/run_baseline.sh --no-device --only session
 #
@@ -30,9 +31,12 @@ Options:
   --no-characterize   Skip characterize scenario
   --export            Enable dashboard export
   --no-export         Skip dashboard export
+  --git-push          Commit and push docs/data/dashboard.json after each export
+  --no-git-push       Export locally only
   --no-device         Do not wrap the command in sample_device.sh
   --split SPLIT       Override session split (default from YAML)
-  --task-id ID        Override session task id (default from YAML)
+  --limit N           Override session task limit (default from YAML, usually 1)
+  --task-id ID        Run one task by id (disables limit unless you pass both)
   --lengths LIST      Override characterize lengths, e.g. 512,2048,4096
   --config PATH       Baseline YAML (default: configs/baseline.yaml)
   -h, --help          Show this help
@@ -50,8 +54,10 @@ CONFIG="${CONFIG:-${ROOT}/configs/baseline.yaml}"
 RUN_SESSION=""
 RUN_CHARACTERIZE=""
 RUN_EXPORT=""
+RUN_GIT_PUSH=""
 ONLY_PICKED=false
 SPLIT_OVERRIDE=""
+LIMIT_OVERRIDE=""
 TASK_OVERRIDE=""
 LENGTHS_OVERRIDE=""
 FORCE_NO_DEVICE=false
@@ -83,10 +89,17 @@ while [[ $# -gt 0 ]]; do
     --no-characterize) RUN_CHARACTERIZE=false ;;
     --export) RUN_EXPORT=true ;;
     --no-export) RUN_EXPORT=false ;;
+    --git-push) RUN_GIT_PUSH=true ;;
+    --no-git-push) RUN_GIT_PUSH=false ;;
     --no-device) FORCE_NO_DEVICE=true ;;
     --split)
       [[ $# -ge 2 ]] || { echo "Missing value for --split" >&2; exit 2; }
       SPLIT_OVERRIDE="$2"
+      shift 2
+      ;;
+    --limit)
+      [[ $# -ge 2 ]] || { echo "Missing value for --limit" >&2; exit 2; }
+      LIMIT_OVERRIDE="$2"
       shift 2
       ;;
     --task-id)
@@ -144,8 +157,8 @@ export A1_CLIENT_TIMEOUT_S="${A1_CLIENT_TIMEOUT_S:-${CLIENT_TIMEOUT_S}}"
 export A1_COMPLETION_TIMEOUT_S="${A1_COMPLETION_TIMEOUT_S:-${CLIENT_TIMEOUT_S}}"
 export LLAMA_ARG_TIMEOUT="${LLAMA_ARG_TIMEOUT:-${SERVER_RW_TIMEOUT_S}}"
 
-read -r SESSION_ENABLED SESSION_SAMPLE SESSION_SPLIT SESSION_TASK \
-  CHAR_ENABLED CHAR_SAMPLE CHAR_LENGTHS EXPORT_ENABLED <<EOF
+read -r SESSION_ENABLED SESSION_SAMPLE SESSION_SPLIT SESSION_LIMIT SESSION_TASK \
+  CHAR_ENABLED CHAR_SAMPLE CHAR_LENGTHS EXPORT_ENABLED EXPORT_GIT_PUSH <<EOF
 $(python - "${CONFIG}" <<'PY'
 import json, sys
 import yaml
@@ -157,15 +170,19 @@ pi = cfg.get("pi_scenarios") or {}
 sess = pi.get("session") or {}
 char = pi.get("characterize") or {}
 export = pi.get("export") or {}
+task_id = sess.get("task_id")
+limit = sess.get("limit", 1)
 print(
     "true" if sess.get("enabled", True) else "false",
     "true" if sess.get("sample_device", True) else "false",
-  sess.get("split", "test"),
-  sess.get("task_id", "multi_turn_long_context_118"),
+    sess.get("split", "test"),
+    limit if limit is not None else "",
+    task_id or "",
     "true" if char.get("enabled", True) else "false",
     "true" if char.get("sample_device", True) else "false",
-  char.get("lengths", "512,2048,4096"),
+    char.get("lengths", "512,2048,4096"),
     "true" if export.get("enabled", True) else "false",
+    "true" if export.get("git_push", False) else "false",
 )
 PY
 )
@@ -175,13 +192,16 @@ if [[ "${ONLY_PICKED}" != true ]]; then
   [[ -z "${RUN_SESSION}" ]] && RUN_SESSION="${SESSION_ENABLED}"
   [[ -z "${RUN_CHARACTERIZE}" ]] && RUN_CHARACTERIZE="${CHAR_ENABLED}"
   [[ -z "${RUN_EXPORT}" ]] && RUN_EXPORT="${EXPORT_ENABLED}"
+  [[ -z "${RUN_GIT_PUSH}" ]] && RUN_GIT_PUSH="${EXPORT_GIT_PUSH}"
 else
   [[ -z "${RUN_SESSION}" ]] && RUN_SESSION=false
   [[ -z "${RUN_CHARACTERIZE}" ]] && RUN_CHARACTERIZE=false
   [[ -z "${RUN_EXPORT}" ]] && RUN_EXPORT=false
+  [[ -z "${RUN_GIT_PUSH}" ]] && RUN_GIT_PUSH=false
 fi
 
 SESSION_SPLIT="${SPLIT_OVERRIDE:-${SESSION_SPLIT}}"
+SESSION_LIMIT="${LIMIT_OVERRIDE:-${SESSION_LIMIT}}"
 SESSION_TASK="${TASK_OVERRIDE:-${SESSION_TASK}}"
 CHAR_LENGTHS="${LENGTHS_OVERRIDE:-${CHAR_LENGTHS}}"
 
@@ -213,6 +233,29 @@ export_dashboard() {
   echo "Wrote docs/data/dashboard.json"
 }
 
+publish_dashboard() {
+  local message="$1"
+  if [[ "${RUN_GIT_PUSH}" != true ]]; then
+    return 0
+  fi
+  if [[ "${RUN_EXPORT}" != true ]]; then
+    echo "Export disabled; skipping git push" >&2
+    return 0
+  fi
+  if ! git -C "${ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Not a git repository; skipping push" >&2
+    return 0
+  fi
+  git -C "${ROOT}" add docs/data/dashboard.json
+  if git -C "${ROOT}" diff --cached --quiet; then
+    echo "Dashboard unchanged; nothing to commit"
+    return 0
+  fi
+  echo "  → commit and push ${message}"
+  git -C "${ROOT}" commit -m "${message}"
+  git -C "${ROOT}" push origin HEAD
+}
+
 STANDALONE_EXPORT=false
 if [[ "${RUN_EXPORT}" == true && "${RUN_SESSION}" != true && "${RUN_CHARACTERIZE}" != true ]]; then
   STANDALONE_EXPORT=true
@@ -232,14 +275,21 @@ fi
 
 if [[ "${RUN_SESSION}" == true ]]; then
   step=$((step + 1))
-  echo "${step}/${total} session (${SESSION_SPLIT} / ${SESSION_TASK})"
-  run_wrapped "${SESSION_SAMPLE}" \
-    ./scripts/run_harness.sh \
-    --split "${SESSION_SPLIT}" \
-    --task-id "${SESSION_TASK}"
+  session_label="${SESSION_SPLIT}"
+  harness_args=(./scripts/run_harness.sh --split "${SESSION_SPLIT}")
+  if [[ -n "${SESSION_TASK}" ]]; then
+    session_label="${session_label} / ${SESSION_TASK}"
+    harness_args+=(--task-id "${SESSION_TASK}")
+  elif [[ -n "${SESSION_LIMIT}" ]]; then
+    session_label="${session_label} / limit ${SESSION_LIMIT}"
+    harness_args+=(--limit "${SESSION_LIMIT}")
+  fi
+  echo "${step}/${total} session (${session_label})"
+  run_wrapped "${SESSION_SAMPLE}" "${harness_args[@]}"
   if [[ "${RUN_EXPORT}" == true ]]; then
     echo "  → export dashboard (held-out run)"
     export_dashboard
+    publish_dashboard "Update dashboard after held-out harness run."
   fi
 fi
 
@@ -253,6 +303,7 @@ if [[ "${RUN_CHARACTERIZE}" == true ]]; then
   if [[ "${RUN_EXPORT}" == true ]]; then
     echo "  → export dashboard (sweep run)"
     export_dashboard
+    publish_dashboard "Update dashboard after characterization sweep."
   fi
 fi
 
@@ -260,6 +311,7 @@ if [[ "${STANDALONE_EXPORT}" == true ]]; then
   step=$((step + 1))
   echo "${step}/${total} export dashboard"
   export_dashboard
+  publish_dashboard "Update dashboard from export."
 fi
 
 echo "Done. Scenarios: session=${RUN_SESSION} characterize=${RUN_CHARACTERIZE} export=${RUN_EXPORT}"

@@ -118,7 +118,7 @@ Legend: `[x]` done · `[ ]` still open. All metrics and accuracy scoring use thi
 - [x] Per-turn token and timing logs, call validity
 - [x] `cache_prompt: false`, schemas in the system prompt
 - [x] Thinking on, with Qwen thinking-mode sampling (temperature 0.6, top-p 0.95, top-k 20)
-- [ ] A finished Pi harness log on a held-out test task (`pi_scenarios.session` in `baseline.yaml`, default `multi_turn_long_context_118`)
+- [ ] A finished Pi harness log (`pi_scenarios.session`: `test` split, `limit: 1` by default)
 
 #### Task 3 — baseline characterization
 
@@ -319,7 +319,7 @@ There is **one baseline configuration**; you measure it with **several Pi scenar
 
 | Scenario | PDF / purpose | Pi script entry |
 |----------|----------------|-----------------|
-| **session** | One held-out test task through the harness (+ device metrics) | `run_baseline.sh --only session` → `run_harness.sh` |
+| **session** | Held-out harness, default `--limit 1` (runs before sweep) | `run_baseline.sh --only session` → `run_harness.sh` |
 | **characterize** | Task 3 prefill/decode at ≥3 lengths | `run_baseline.sh --only characterize` → `characterize_baseline.sh` |
 | **export** | Refresh GitHub Pages data after each measurement step (or alone) | `export_dashboard.sh` via `run_baseline.sh` |
 | **Held-out exam** | Full test split (long on Pi) | `./scripts/run_test_accuracy.sh` |
@@ -336,13 +336,14 @@ pi_scenarios:
     enabled: true
     sample_device: true    # wrap in sample_device.sh (power, temp, RSS)
     split: test
-    task_id: multi_turn_long_context_118
+    limit: 1               # first task only; optional task_id to pin one id
   characterize:
     enabled: true
     sample_device: true
     lengths: "512,2048,4096"
   export:
     enabled: true
+    git_push: true       # commit and push dashboard.json after each export
 ```
 
 `sample_device: true` archives traces under `results/baseline/history/<timestamp>/`.
@@ -357,7 +358,7 @@ pi_scenarios:
 ./scripts/run_baseline.sh --only session --only characterize   # no export
 ./scripts/run_baseline.sh --no-session --only characterize     # explicit skips
 ./scripts/run_baseline.sh --no-device --only session # harness without power trace
-./scripts/run_baseline.sh --only session --split test --task-id multi_turn_long_context_118
+./scripts/run_baseline.sh --only session --limit 1
 ./scripts/run_baseline.sh --only characterize --lengths 512,2048
 ./scripts/run_baseline.sh --config configs/baseline.yaml
 ./scripts/run_baseline.sh --help
@@ -369,8 +370,9 @@ pi_scenarios:
 | `--session` / `--no-session` | Force enable or skip session |
 | `--characterize` / `--no-characterize` | Force enable or skip sweep |
 | `--export` / `--no-export` | Force enable or skip dashboard export |
+| `--git-push` / `--no-git-push` | Push `docs/data/dashboard.json` after each export |
 | `--no-device` | Do not wrap in `sample_device.sh` |
-| `--split`, `--task-id` | Override session task |
+| `--split`, `--limit`, `--task-id` | Override session split / limit / task |
 | `--lengths` | Override characterize prompt lengths |
 | `--config` | Alternate baseline YAML |
 

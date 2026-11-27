@@ -748,7 +748,7 @@
     function steps() {
       return `<section class="panel"><h2>Record the next run</h2>
         <p class="note">Leave <code>./scripts/start_server.sh</code> running, then in a second terminal run <code>./scripts/run_baseline.sh</code>. It records one held-out harness task, the prefill/decode sweep, and power/temperature beside each step, then writes <code>docs/data/dashboard.json</code>.</p>
-        <p class="note">With <code>export</code> enabled in <code>baseline.yaml</code>, <code>run_baseline.sh</code> refreshes <code>dashboard.json</code> after each held-out session and after the sweep finishes. Commit and push to update this page.</p></section>`;
+        <p class="note">With <code>export.git_push</code> enabled in <code>baseline.yaml</code>, <code>run_baseline.sh</code> exports <code>dashboard.json</code> and pushes to GitHub after the harness and again after the sweep.</p></section>`;
     }
 
     function render(data) {
