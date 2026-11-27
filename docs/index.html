@@ -6,33 +6,68 @@
   <title>A1 baseline</title>
   <style>
     :root {
-      --bg: #f7f7f5;
-      --ink: #171717;
-      --muted: #6d6d6d;
-      --line: #e6e6e3;
+      --bg: #fff;
+      --ink: #0d0d0d;
+      --muted: #5d5d5d;
+      --caption: #8f8f8f;
+      --line: #0000001f;
       --surface: #fff;
-      --good: #1b7f4e;
-      --bad: #a33b32;
-      --prefill: #1b7f4e;
-      --decode: #2c6490;
+      --surface-2: #f9f9f9;
+      --surface-3: #f3f3f3;
+      --chip-bg: #ededed;
+      --good: #2c6732;
+      --good-fill: #53b559;
+      --bad: #92201d;
+      --prefill: #3a843f;
+      --prefill-ink: #14361a;
+      --decode: #2c67c5;
+      --decode-ink: #133463;
+      --warn: #95611f;
+      --radius: 12px;
+      --radius-sm: 8px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       background: var(--bg);
       color: var(--ink);
-      font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      font: 16px/1.625 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
     }
-    header, main { width: min(1080px, calc(100% - 40px)); margin: 0 auto; }
-    header { padding: 28px 0 0; }
-    h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
-    h2 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
-    .kicker { margin: 0 0 6px; color: var(--muted); font-size: 12px; }
-    .sub { margin: 6px 0 0; color: var(--muted); }
+    header, main { width: min(68rem, calc(100% - 40px)); margin: 0 auto; }
+    header { padding: 5rem 0 0; }
+    h1 {
+      margin: 0;
+      font-size: clamp(1.75rem, 4vw, 2.25rem);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      max-width: 42rem;
+    }
+    h2 { margin: 0 0 12px; font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; }
+    .kicker { margin: 0 0 10px; color: var(--muted); font-size: 0.875rem; letter-spacing: 0.02em; }
+    .sub { margin: 12px 0 0; color: var(--muted); font-size: 0.9375rem; max-width: 42rem; }
+    .meta-line { margin: 16px 0 0; color: var(--caption); font-size: 0.8125rem; line-height: 1.5; }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-    .chip { border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; color: var(--muted); font-size: 12px; background: var(--surface); }
-    .chip strong { color: var(--ink); font-weight: 600; }
-    .tabs { display: flex; gap: 2px; margin-top: 18px; border-bottom: 1px solid var(--line); }
+    .chip {
+      border-radius: 999px;
+      padding: 4px 11px;
+      color: var(--ink);
+      font-size: 0.8125rem;
+      background: var(--chip-bg);
+      font-weight: 500;
+    }
+    .chip strong { font-weight: 600; }
+    .tabs {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 2rem;
+      padding: 3px;
+      background: var(--chip-bg);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+    }
     .tabs button, .dates button {
       font: inherit;
       cursor: pointer;
@@ -41,42 +76,140 @@
       appearance: none;
       background: transparent;
       border: 0;
-      border-bottom: 2px solid transparent;
-      margin-bottom: -1px;
-      padding: 8px 12px;
+      border-radius: 999px;
+      padding: 8px 14px;
       color: var(--muted);
+      font-size: 0.875rem;
+      font-weight: 500;
     }
-    .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
-    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-top: 14px; }
-    .dates { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
-    .dates button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 10px; color: var(--muted); }
+    .tabs button[aria-selected="true"] {
+      color: var(--ink);
+      background: var(--surface);
+      box-shadow: 0 1px 2px #00000014;
+    }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      margin-top: 1.25rem;
+    }
+    .panel.hero-panel { border: 0; background: var(--surface-2); padding: 24px 26px; }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+      gap: 12px;
+      margin: 4px 0 8px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 14px 14px 12px;
+      min-height: 6.5rem;
+    }
+    .stat-label {
+      margin: 0;
+      color: var(--caption);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      line-height: 1.35;
+    }
+    .stat-mult {
+      margin: 8px 0 6px;
+      font-size: 1.75rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      color: var(--good);
+    }
+    .stat-mult.badish { color: var(--bad); }
+    .stat-detail { margin: 0; color: var(--muted); font-size: 0.875rem; line-height: 1.4; font-variant-numeric: tabular-nums; }
+    .dates { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+    .dates button {
+      border: 1px solid var(--line);
+      background: var(--surface);
+      border-radius: 999px;
+      padding: 6px 12px;
+      color: var(--muted);
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+    .run-meta {
+      margin: 0 0 16px;
+      color: var(--caption);
+      font-size: 0.75rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      line-height: 1.5;
+    }
     .dates button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
     table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
     th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-    th { color: var(--muted); font-size: 12px; font-weight: 600; }
+    th {
+      color: var(--caption);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
     tr:last-child td { border-bottom: 0; }
     .num { text-align: right; }
     .good { color: var(--good); }
     .bad { color: var(--bad); }
-    .delta { margin-left: 6px; font-size: 12px; }
+    .delta { margin-left: 6px; font-size: 0.75rem; font-weight: 600; }
     .note, .empty { color: var(--muted); }
-    .note { font-size: 13px; margin: 8px 0 0; }
-    code { font-family: ui-monospace, "SF Mono", ui-monospace, monospace; font-size: 12px; }
+    .note { font-size: 0.9375rem; margin: 10px 0 0; line-height: 1.55; max-width: 46rem; }
+    code { font-family: ui-monospace, "SF Mono", ui-monospace, monospace; font-size: 0.8125rem; }
+    .figure { margin: 4px 0 0; }
+    .figure-caption {
+      margin: 12px 0 0;
+      color: var(--caption);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      text-align: center;
+    }
     ol.steps { margin: 8px 0 0; padding-left: 18px; }
     ol.steps li { margin: 6px 0; }
-    .trace { width: 100%; height: auto; display: block; }
-    .legend { display: flex; gap: 14px; color: var(--muted); font-size: 12px; margin-top: 8px; }
-    .swatch { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 2px; }
-    .bar-row { display: grid; grid-template-columns: 64px 1fr; gap: 8px; align-items: center; margin: 7px 0; }
-    .track { position: relative; height: 18px; background: #f3f3f1; border-radius: 4px; overflow: hidden; }
+    .trace {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: var(--surface-2);
+      border-radius: var(--radius-sm);
+    }
+    .legend { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 0.8125rem; margin-top: 10px; }
+    .swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; vertical-align: -1px; }
+    .bar-row { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; margin: 8px 0; }
+    .track {
+      position: relative;
+      height: 22px;
+      background: var(--surface-3);
+      border-radius: 6px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
     .fill { height: 100%; }
-    .fill span { position: absolute; right: 8px; top: 1px; font-size: 12px; }
-    .fill.prefill { background: rgba(27, 127, 78, 0.22); }
-    .fill.decode { background: rgba(44, 100, 144, 0.22); }
-    footer { color: var(--muted); font-size: 12px; margin: 16px 0 36px; }
+    .fill span {
+      position: absolute;
+      right: 8px;
+      top: 2px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--prefill-ink);
+    }
+    .fill.decode span { color: var(--decode-ink); }
+    .fill.prefill { background: color-mix(in srgb, var(--good-fill) 28%, transparent); }
+    .fill.decode { background: color-mix(in srgb, var(--decode) 24%, transparent); }
+    footer { color: var(--caption); font-size: 0.8125rem; margin: 20px 0 48px; line-height: 1.5; }
     @media (max-width: 720px) {
-      header, main { width: min(1080px, calc(100% - 24px)); }
-      .tabs { overflow-x: auto; }
+      header, main { width: min(68rem, calc(100% - 24px)); }
+      header { padding-top: 2.5rem; }
+      .tabs { display: flex; overflow-x: auto; max-width: 100%; border-radius: var(--radius); }
     }
   </style>
 </head>
@@ -85,6 +218,7 @@
     <p class="kicker" id="kicker">AI624 · Project A1</p>
     <h1 id="title">Baseline</h1>
     <p class="sub" id="subtitle">Loading runs</p>
+    <p class="meta-line" id="meta-line"></p>
     <div class="chips" id="chips"></div>
   </header>
   <main id="main"></main>
@@ -102,6 +236,15 @@
       power: "Power",
       harness: "Harness",
       train: "Train",
+    };
+    const CHART = {
+      prefill: "#3a843f",
+      decode: "#2c67c5",
+      power: "#53b559",
+      temp: "#539af8",
+      grid: "#0000001f",
+      axis: "#8f8f8f",
+      mark: "#95611f",
     };
     const state = {
       tab: (location.hash || "#overview").slice(1),
@@ -193,6 +336,113 @@
       return `<span class="delta ${improved ? "good" : "bad"}">${sign}${rounded}%</span>`;
     }
 
+    function ratioMultiplier(current, previous, lowerIsBetter) {
+      if (typeof current !== "number" || typeof previous !== "number" || !current || !previous) return "";
+      const ratio = lowerIsBetter ? previous / current : current / previous;
+      if (!Number.isFinite(ratio) || ratio < 1.05) return "";
+      const improved = ratio >= 1.05;
+      const sign = lowerIsBetter ? (previous > current) : (current > previous);
+      if (!sign) return "";
+      return `<p class="stat-mult${improved ? "" : " badish"}">≈${ratio.toFixed(1)}×</p>`;
+    }
+
+    function vsLine(current, previous, format) {
+      if (current === null || current === undefined || Number.isNaN(current)) return "—";
+      if (previous === null || previous === undefined || previous === "" || Number.isNaN(previous)) return format(current);
+      return `${format(current)} vs. ${format(previous)}`;
+    }
+
+    function statCard(label, multiplier, detail) {
+      return `<article class="stat-card">
+        <p class="stat-label">${esc(label)}</p>
+        ${multiplier || ""}
+        <p class="stat-detail">${detail}</p>
+      </article>`;
+    }
+
+    function runStats(run, previous) {
+      const calls = callStats(run);
+      const rate = calls.total ? calls.ok / calls.total : null;
+      const prevCalls = previous ? callStats(previous) : null;
+      const prevRate = prevCalls && prevCalls.total ? prevCalls.ok / prevCalls.total : null;
+      const mp = medianPrefill(run);
+      const md = medianDecode(run);
+      const energy = run.device && run.device.energy_j;
+      const prevEnergy = previous && previous.device && previous.device.energy_j;
+      const temp = run.device && run.device.temp_c_max;
+      const prevTemp = previous && previous.device && previous.device.temp_c_max;
+      return `<div class="stat-grid">
+        ${statCard(
+          "Median prefill",
+          ratioMultiplier(mp, previous && medianPrefill(previous), true),
+          vsLine(mp, previous && medianPrefill(previous), (value) => ms(value))
+        )}
+        ${statCard(
+          "Median decode",
+          ratioMultiplier(md, previous && medianDecode(previous), true),
+          vsLine(md, previous && medianDecode(previous), (value) => ms(value))
+        )}
+        ${statCard(
+          "Valid tool calls",
+          ratioMultiplier(rate, prevRate, false),
+          calls.total ? vsLine(rate, prevRate, (value) => `${num((value || 0) * 100, 0)}% (${calls.ok}/${calls.total})`) : "—"
+        )}
+        ${statCard(
+          "Run energy",
+          ratioMultiplier(energy, prevEnergy, true),
+          vsLine(energy, prevEnergy, joules)
+        )}
+        ${statCard(
+          "Peak temperature",
+          ratioMultiplier(temp, prevTemp, true),
+          vsLine(temp, prevTemp, celsius)
+        )}
+      </div>`;
+    }
+
+    function runMeta(run, baseline) {
+      const parts = [
+        baseline.model_family && baseline.model_size ? `${baseline.model_family}-${baseline.model_size}` : null,
+        baseline.gguf,
+        baseline.context_size ? `${num(baseline.context_size, 0)} ctx` : null,
+        baseline.threads ? `${baseline.threads} threads` : null,
+        baseline.cache_prompt === false ? "cache_prompt false" : (baseline.cache_prompt === true ? "cache_prompt true" : null),
+        KIND[run.kind] || run.kind,
+        when(run.started_at),
+      ].filter(Boolean);
+      return parts.join(" · ");
+    }
+
+    function headlineStats(runs, prior) {
+      const kinds = ["long_task", "held_out", "sweep"];
+      const picks = kinds.map((kind) => {
+        const ofKind = runs.filter((run) => run.kind === kind).sort(byDate);
+        return ofKind.length ? ofKind[ofKind.length - 1] : null;
+      }).filter(Boolean);
+      if (!picks.length) return "";
+      const cards = picks.map((run) => {
+        const previous = prior[run.id];
+        const mp = medianPrefill(run);
+        const md = medianDecode(run);
+        const label = `${KIND[run.kind] || run.kind} · latest`;
+        let multiplier = "";
+        let detail = `${ms(mp)} prefill · ${ms(md)} decode`;
+        if (run.kind !== "sweep" && typeof mp === "number" && previous && typeof medianPrefill(previous) === "number") {
+          multiplier = ratioMultiplier(mp, medianPrefill(previous), true);
+          detail = vsLine(mp, medianPrefill(previous), ms);
+        } else if (run.kind === "sweep") {
+          const rows = (run.characterization && run.characterization.measurements) || [];
+          const peak = rows.reduce((best, row) => Math.max(best, row.predicted_per_second || 0), 0);
+          const prevRows = previous && previous.characterization && previous.characterization.measurements;
+          const prevPeak = prevRows ? prevRows.reduce((best, row) => Math.max(best, row.predicted_per_second || 0), 0) : null;
+          multiplier = ratioMultiplier(peak, prevPeak, false);
+          detail = peak ? `${toks(peak)} peak decode${prevPeak ? ` vs. ${toks(prevPeak)}` : ""}` : "—";
+        }
+        return statCard(label, multiplier, detail);
+      }).join("");
+      return `<section class="panel hero-panel"><h2>Latest measurements</h2><div class="stat-grid">${cards}</div><p class="note">Uppercase metric labels, ≈N× multipliers, and vs. lines compare each latest run with the previous run of the same kind.</p></section>`;
+    }
+
     function previousOf(runs) {
       const map = {};
       const last = {};
@@ -260,15 +510,19 @@
         return `<path d="${path}" fill="none" stroke="${item.color}" stroke-width="2"/>${dots}`;
       }).join("");
       const xLabels = labels.filter((_, index) => labels.length <= 6 || index === 0 || index === labels.length - 1 || index % Math.ceil(labels.length / 6) === 0);
-      return `<svg class="trace" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(yLabel)}">
-        <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="#e6e6e3"/>
-        ${paths}
-        <text x="4" y="14" fill="#6d6d6d" font-size="11">${esc(yLabel)}</text>
-        <text x="${padL}" y="${height - 8}" fill="#6d6d6d" font-size="11">${esc(xLabels[0] || "")}</text>
-        <text x="${padL + plotW}" y="${height - 8}" text-anchor="end" fill="#6d6d6d" font-size="11">${esc(xLabels[xLabels.length - 1] || "")}</text>
-      </svg>
-      <div class="legend">${series.map((item) => `<span><i class="swatch" style="background:${item.color}"></i>${esc(item.name)}</span>`).join("")}</div>
-      <p class="note">${caption}</p>`;
+      const captionUpper = String(caption).split(".")[0];
+      return `<figure class="figure">
+        <svg class="trace" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(yLabel)}">
+          <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="${CHART.grid}"/>
+          ${paths}
+          <text x="4" y="14" fill="${CHART.axis}" font-size="11">${esc(yLabel)}</text>
+          <text x="${padL}" y="${height - 8}" fill="${CHART.axis}" font-size="11">${esc(xLabels[0] || "")}</text>
+          <text x="${padL + plotW}" y="${height - 8}" text-anchor="end" fill="${CHART.axis}" font-size="11">${esc(xLabels[xLabels.length - 1] || "")}</text>
+        </svg>
+        <p class="figure-caption">${esc(captionUpper)}</p>
+        <div class="legend">${series.map((item) => `<span><i class="swatch" style="background:${item.color}"></i>${esc(item.name)}</span>`).join("")}</div>
+        <p class="note">${caption}</p>
+      </figure>`;
     }
 
     function powerChart(device) {
@@ -312,20 +566,23 @@
       };
       const marks = ((device && device.marks) || []).filter((mark) => typeof mark.t_s === "number").map((mark) => {
         const x = xOf(Math.max(0, Math.min(mark.t_s, tMax)));
-        return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${padT}" y2="${padT + plotH}" stroke="#8a5a12" stroke-dasharray="3 3"/>`;
+        return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${padT}" y2="${padT + plotH}" stroke="${CHART.mark}" stroke-dasharray="3 3"/>`;
       }).join("");
-      return `<svg class="trace" viewBox="0 0 ${width} ${height}" role="img" aria-label="Power and temperature during the run">
-        <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="#e6e6e3"/>
-        <path d="${pathFor("power_w", pMin, pMax)}" fill="none" stroke="#1b7f4e" stroke-width="2"/>
-        <path d="${pathFor("temp_c", cMin, cMax)}" fill="none" stroke="#2c6490" stroke-width="2"/>
-        ${marks}
-        <text x="${padL}" y="12" fill="#6d6d6d" font-size="11">${num(pHi, 1)} W</text>
-        <text x="${width - 8}" y="12" text-anchor="end" fill="#6d6d6d" font-size="11">${num(cHi, 1)} °C</text>
-        <text x="${padL}" y="${height - 8}" fill="#6d6d6d" font-size="11">0s</text>
-        <text x="${padL + plotW}" y="${height - 8}" text-anchor="end" fill="#6d6d6d" font-size="11">${num(tMax, 0)}s</text>
-      </svg>
-      <div class="legend"><span><i class="swatch" style="background:#1b7f4e"></i>power</span><span><i class="swatch" style="background:#2c6490"></i>temperature</span></div>
-      <p class="note">Power (W) and temperature (°C) sampled about every ${num((device && device.interval_s) || 1, 0)}s for this run. Source: vcgencmd rail power and measure_temp.</p>`;
+      return `<figure class="figure">
+        <svg class="trace" viewBox="0 0 ${width} ${height}" role="img" aria-label="Power and temperature during the run">
+          <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="${CHART.grid}"/>
+          <path d="${pathFor("power_w", pMin, pMax)}" fill="none" stroke="${CHART.power}" stroke-width="2"/>
+          <path d="${pathFor("temp_c", cMin, cMax)}" fill="none" stroke="${CHART.temp}" stroke-width="2"/>
+          ${marks}
+          <text x="${padL}" y="12" fill="${CHART.axis}" font-size="11">${num(pHi, 1)} W</text>
+          <text x="${width - 8}" y="12" text-anchor="end" fill="${CHART.axis}" font-size="11">${num(cHi, 1)} °C</text>
+          <text x="${padL}" y="${height - 8}" fill="${CHART.axis}" font-size="11">0s</text>
+          <text x="${padL + plotW}" y="${height - 8}" text-anchor="end" fill="${CHART.axis}" font-size="11">${num(tMax, 0)}s</text>
+        </svg>
+        <p class="figure-caption">Power and temperature trace</p>
+        <div class="legend"><span><i class="swatch" style="background:${CHART.power}"></i>power</span><span><i class="swatch" style="background:${CHART.temp}"></i>temperature</span></div>
+        <p class="note">Power (W) and temperature (°C) sampled about every ${num((device && device.interval_s) || 1, 0)}s for this run. Source: vcgencmd rail power and measure_temp.</p>
+      </figure>`;
     }
 
     function deviceFacts(device) {
@@ -379,7 +636,7 @@
         <div class="track" style="margin-top:4px"><div class="fill decode" style="width:${((row.predicted_per_second || 0) / max) * 100}%"><span>${toks(row.predicted_per_second)}</span></div></div>
       </div></div>`).join("");
       return `${bars}
-        <div class="legend"><span><i class="swatch" style="background:#1b7f4e"></i>prefill</span><span><i class="swatch" style="background:#2c6490"></i>decode</span></div>
+        <div class="legend"><span><i class="swatch" style="background:${CHART.prefill}"></i>prefill</span><span><i class="swatch" style="background:${CHART.decode}"></i>decode</span></div>
         <p class="note">Prefill and decode throughput by prompt length. Source: llama-server timings, cache_prompt false.</p>`;
     }
 
@@ -411,8 +668,8 @@
 
     function latencyTrend(runs) {
       const kinds = [
-        ["long_task", "Long task", "#1b7f4e"],
-        ["held_out", "Held-out", "#2c6490"],
+        ["long_task", "Long task", CHART.prefill],
+        ["held_out", "Held-out", CHART.decode],
       ];
       const series = kinds.map(([kind, name, color]) => ({
         name,
@@ -430,10 +687,11 @@
         const y = pick(run);
         return typeof y === "number" ? [{ x: when(run.started_at), y }] : [];
       });
-      return lineChart([{ name: "Median prefill", color: "#1b7f4e", points }], "Median prefill (ms)", "Same benchmark on later dates. Lower is better.");
+      return lineChart([{ name: "Median prefill", color: CHART.prefill, points }], "Median prefill (ms)", "Same benchmark on later dates. Lower is better.");
     }
 
     function overview(runs, prior) {
+      const hero = headlineStats(runs, prior);
       const chart = latencyTrend(runs);
       const rows = [...runs].sort(byDate).reverse().map((run) => {
         const previous = prior[run.id];
@@ -448,18 +706,20 @@
           <td class="num">${celsius(run.device && run.device.temp_c_max)}</td>
         </tr>`;
       }).join("");
-      return `${chart ? `<section class="panel"><h2>Prefill over time</h2>${chart}</section>` : ""}
+      return `${hero}
+        ${chart ? `<section class="panel"><h2>Prefill over time</h2>${chart}</section>` : ""}
         <section class="panel"><h2>Every recorded run</h2>
           <table><thead><tr><th>Date</th><th>Tab</th><th class="num">Calls</th><th class="num">Prefill</th><th class="num">Decode</th><th class="num">Energy</th><th class="num">Temp max</th></tr></thead><tbody>${rows}</tbody></table>
           <p class="note">Percentages compare with the previous run of the same kind. Green means the later run improved.</p>
         </section>`;
     }
 
-    function detail(runs, kind) {
+    function detail(runs, kind, baseline, prior) {
       if (!runs.length) {
         return `<section class="panel"><p class="empty">No ${esc(KIND[kind] || kind)} runs yet.</p></section>`;
       }
       const run = selected(runs, kind);
+      const previous = prior[run.id];
       const trend = kind === "sweep" ? "" : kindTrend(runs, medianPrefill);
       const body = kind === "sweep"
         ? `${sweepBars(run)}${deviceFacts(run.device)}<div style="height:16px"></div>${sweepCompare(runs)}`
@@ -468,6 +728,8 @@
       return `<section class="panel">
         ${dateStrip(runs, kind)}
         <h2>${esc(when(run.started_at))}</h2>
+        <p class="run-meta">${esc(runMeta(run, baseline))}</p>
+        ${runStats(run, previous)}
         ${command ? `<p class="note"><code>${esc(command)}</code></p>` : ""}
         ${body}
         ${trend ? `<div style="height:8px"></div>${trend}` : ""}
@@ -488,13 +750,22 @@
       const server = data.server || {};
       $("kicker").textContent = data.project ? `${data.project.course} · ${data.project.track}` : "AI624 · Project A1";
       $("title").textContent = data.project ? data.project.name : "Baseline";
+      const modelLabel = `${baseline.model_family || "Qwen3"}-${baseline.model_size || "1.7B"}`;
       $("subtitle").textContent = runs.length
-        ? `${runs.length} run${runs.length === 1 ? "" : "s"} · updated ${when(data.updated_at)}`
+        ? `${runs.length} dated run${runs.length === 1 ? "" : "s"} on Raspberry Pi 5 — edge tool-calling baseline`
         : "No dated runs yet";
+      $("meta-line").textContent = [
+        data.project && data.project.course,
+        modelLabel,
+        server.model_ftype || "BF16",
+        `${server.n_ctx || baseline.context_size || "?"} ctx`,
+        baseline.cache_prompt === false ? "cache_prompt false" : `cache_prompt ${baseline.cache_prompt}`,
+      ].filter(Boolean).join(" · ");
       $("chips").innerHTML = [
-        ["model", `${baseline.model_family || "Qwen3"}-${baseline.model_size || "1.7B"}`],
-        ["weights", server.model_ftype || "BF16"],
-        ["context", server.n_ctx || baseline.context_size],
+        ["Model", modelLabel],
+        ["Weights", server.model_ftype || "BF16"],
+        ["Context", server.n_ctx || baseline.context_size],
+        ["Threads", baseline.threads],
         ["cache_prompt", String(baseline.cache_prompt)],
       ].map(([label, value]) => `<span class="chip">${label} <strong>${esc(value)}</strong></span>`).join("");
 
@@ -502,7 +773,7 @@
       let body;
       if (!runs.length) body = steps();
       else if (state.tab === "overview") body = overview(runs, prior) + steps();
-      else body = detail(runs.filter((run) => run.kind === state.tab), state.tab);
+      else body = detail(runs.filter((run) => run.kind === state.tab), state.tab, baseline, prior);
       $("main").innerHTML = `${tabs()}${body}<footer>Each run is kept. Export merges <code>results/baseline/history/</code> into <code>docs/data/dashboard.json</code>.</footer>`;
     }
 

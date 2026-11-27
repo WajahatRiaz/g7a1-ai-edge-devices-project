@@ -74,4 +74,4 @@ echo "==> Converting to BF16 GGUF: ${GGUF}"
 
 ls -lh "${GGUF}"
 echo "Done. Serve with:"
-echo "  ./build/llama.cpp/bin/llama-server -m ${GGUF} -c 16384 --jinja -t \"\$(nproc)\" --host 127.0.0.1 --port 8080"
+echo "  ./scripts/start_server.sh   # default -c 16384 (course A1 baseline)"

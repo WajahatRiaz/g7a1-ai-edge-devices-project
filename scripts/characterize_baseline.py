@@ -30,14 +30,28 @@ def make_prompt(n_tokens_approx: int) -> str:
     return (unit * ((need // len(unit)) + 1))[:need]
 
 
-def request_timeout_s() -> float:
+def request_timeout_s(cfg: dict | None = None) -> float:
     raw = os.environ.get("A1_COMPLETION_TIMEOUT_S")
     if raw:
         return float(raw)
-    return 10800.0
+    if cfg:
+        client = cfg.get("client") or {}
+        server = cfg.get("server") or {}
+        if client.get("timeout_s") is not None:
+            return float(client["timeout_s"])
+        if server.get("read_write_timeout_s") is not None:
+            return float(server["read_write_timeout_s"])
+    return 86400.0
 
 
-def completion(base_url: str, prompt: str, cache_prompt: bool, n_predict: int = 32):
+def completion(
+    base_url: str,
+    prompt: str,
+    cache_prompt: bool,
+    n_predict: int = 32,
+    *,
+    timeout_s: float,
+):
     body = {
         "prompt": prompt,
         "n_predict": n_predict,
@@ -46,7 +60,7 @@ def completion(base_url: str, prompt: str, cache_prompt: bool, n_predict: int = 
         "stream": False,
     }
     t0 = time.perf_counter()
-    r = requests.post(f"{base_url}/completion", json=body, timeout=request_timeout_s())
+    r = requests.post(f"{base_url}/completion", json=body, timeout=timeout_s)
     wall = time.perf_counter() - t0
     r.raise_for_status()
     payload = r.json()
@@ -82,6 +96,7 @@ def main() -> None:
         f"http://{cfg['server']['host']}:{cfg['server']['port']}"
     )
     lengths = [int(x) for x in args.lengths.split(",") if x.strip()]
+    http_timeout_s = request_timeout_s(cfg)
 
     health = requests.get(f"{base_url}/health", timeout=5)
     health.raise_for_status()
@@ -90,7 +105,12 @@ def main() -> None:
     for n in lengths:
         prompt = make_prompt(n)
         print(f"length~{n} cache_prompt={args.cache_prompt} ...", flush=True)
-        row = completion(base_url, prompt, cache_prompt=args.cache_prompt)
+        row = completion(
+            base_url,
+            prompt,
+            cache_prompt=args.cache_prompt,
+            timeout_s=http_timeout_s,
+        )
         row["requested_tokens_approx"] = n
         row["cache_prompt"] = args.cache_prompt
         # Pi-only fields left null on the host.

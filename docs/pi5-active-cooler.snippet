@@ -1,0 +1,8 @@
+# Copy these lines into /boot/firmware/config.txt under [pi5] if the fan
+# twitches at boot then stays off while the SoC is hot (cooling_fan disabled).
+
+[pi5]
+dtparam=cooling_fan=on
+dtparam=fan_temp0=45000
+dtparam=fan_temp0_hyst=5000
+dtparam=fan_temp0_speed=128

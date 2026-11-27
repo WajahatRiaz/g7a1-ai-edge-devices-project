@@ -27,22 +27,44 @@ fi
 
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-8080}"
-CTX="${CTX:-8192}"
+CTX="${CTX:-16384}"
+CTX_MAX="${CTX_MAX:-16384}"
+if (( CTX > CTX_MAX )); then
+  echo "CTX=${CTX} exceeds cap CTX_MAX=${CTX_MAX}. Course A1 baseline is 16k; 32k does not fit 8 GB." >&2
+  exit 1
+fi
 NPROC="$(nproc)"
 THREADS="${THREADS:-2}"
 THREADS_BATCH="${THREADS_BATCH:-${NPROC}}"
-# One slot on 8GB Pi: default `-np auto` reserves 4×8192 KV and slows BF16 runs.
+# One slot on 8GB Pi: default `-np auto` reserves 4× n_ctx KV and slows BF16 runs.
 PARALLEL="${PARALLEL:-1}"
+
+BASELINE_CFG="${ROOT}/configs/baseline.yaml"
+if [[ -z "${SERVER_TIMEOUT:-}" && -f "${BASELINE_CFG}" && -x "${ROOT}/.venv/bin/python" ]]; then
+  SERVER_TIMEOUT="$("${ROOT}/.venv/bin/python" - "${BASELINE_CFG}" <<'PY'
+import sys, yaml
+with open(sys.argv[1], encoding="utf-8") as f:
+    cfg = yaml.safe_load(f)
+srv = (cfg.get("server") or {}).get("read_write_timeout_s")
+cli = (cfg.get("client") or {}).get("timeout_s")
+print(srv if srv is not None else (cli if cli is not None else 86400))
+PY
+)"
+fi
+SERVER_TIMEOUT="${SERVER_TIMEOUT:-${LLAMA_ARG_TIMEOUT:-86400}}"
+export LLAMA_ARG_TIMEOUT="${SERVER_TIMEOUT}"
 
 export LD_LIBRARY_PATH="${ROOT}/build/llama.cpp/bin:${LD_LIBRARY_PATH:-}"
 
 echo "Model:   ${GGUF}"
 echo "Listen:  http://${HOST}:${PORT}/"
 echo "CTX=${CTX} parallel=${PARALLEL} threads=${THREADS} threads_batch=${THREADS_BATCH}"
+echo "Timeout: ${SERVER_TIMEOUT}s (llama-server --timeout; see baseline.yaml)"
 echo "Stop:    pkill -f llama-server"
 exec "${SERVER}" \
   -m "${GGUF}" \
   -c "${CTX}" \
+  --timeout "${SERVER_TIMEOUT}" \
   --jinja \
   --webui \
   -t "${THREADS}" \

@@ -28,7 +28,7 @@ On-device multi-turn tool calling with Qwen3 through [llama.cpp](https://github.
 |---|---|
 | **Runtime** | `llama.cpp` / `llama-server` (every token on device) |
 | **Model family** | Qwen3, full attention in every layer (Qwen3.5 hybrids are out of scope) |
-| **Baseline** | Qwen3-1.7B BF16, `cache_prompt: false`, thinking on. Served context on the Pi is 8192. The manual's nominal cache is 16k. |
+| **Baseline** | Qwen3-1.7B BF16, `cache_prompt: false`, thinking on, **16k** cache (`-c 16384` per [docs/Project_Description_AI624_2026.pdf](docs/Project_Description_AI624_2026.pdf)). **32k** does not fit 8 GB with BF16 weights. |
 | **Tools** | ~20–30 BFCL multi-turn functions, long-context mode, must include TradingBot |
 | **Out of scope** | Multi-agent orchestration; model served from another machine |
 
@@ -100,7 +100,7 @@ Legend: `[x]` done · `[ ]` still open. Device metrics come from this Raspberry 
 - [x] Submodules: `third_party/llama.cpp` (`d1eb0de`), `third_party/gorilla`
 - [x] Native `llama-server`, `llama-cli`, `llama-quantize`, and `llama-imatrix` built on this Pi 5
 - [x] Download `Qwen/Qwen3-1.7B` and convert `models/qwen3-1.7b-bf16.gguf`
-- [x] Serve BF16 on the Pi (`127.0.0.1:8080`, `-c 8192`, `-np 1`, `-t 2`, `-tb 4`)
+- [x] Serve BF16 on the Pi (`127.0.0.1:8080`, `-c 16384`, `-np 1`, `-t 2`, `-tb 4`)
 - [x] Dated power and thermal traces, GitHub Pages dashboard
 - [x] TradingBot long-context filler cap in the shared `long_context.py` (`setup.sh` reapplies it)
 
@@ -285,7 +285,7 @@ Optional: `export HF_TOKEN=...` for higher Hugging Face rate limits.
 
 ### 7.2 Serve the baseline
 
-**Memory:** BF16 weights are about 3.8 GB. One server, `-c 8192`, `-np 1`. A second server, or `-c 32768`, does not fit beside the OS on 8 GB. Leave `--long-context` off until a short session has been measured. The filler cap in `setup.sh` is what keeps a later long-context dump from jumping to tens of thousands of tokens.
+**Memory:** BF16 weights are about 3.8 GB. One server at the PDF baseline **`-c 16384`** (~1.75 GiB KV). **Do not** use 32768 on 8 GB. `-np 1`. Leave `--long-context` off until a short session has been measured. The filler cap in `setup.sh` is what keeps long-context dumps within the **16k–32k session** targets from the PDF.
 
 **Interactive chat (Web UI):** start the server, then open **http://127.0.0.1:8080/** in a browser. The wrapper picks `models/qwen3-1.7b-bf16.gguf` when present, otherwise `models/qwen3-1.7b-q8_0.gguf` (override with `MODEL=...`).
 
@@ -300,7 +300,7 @@ Manual equivalent (BF16 baseline):
 export LD_LIBRARY_PATH="${PWD}/build/llama.cpp/bin:${LD_LIBRARY_PATH:-}"
 ./build/llama.cpp/bin/llama-server \
   -m models/qwen3-1.7b-bf16.gguf \
-  -c 8192 \
+  -c 16384 \
   --jinja \
   --webui \
   -t 2 \
@@ -314,23 +314,119 @@ export LD_LIBRARY_PATH="${PWD}/build/llama.cpp/bin:${LD_LIBRARY_PATH:-}"
 
 ### 7.3 Baseline runs
 
-Keep that **single** `llama-server` running. Baseline config: [`configs/baseline.yaml`](configs/baseline.yaml). Thinking on, temperature 0.6, top-p 0.95, top-k 20, `cache_prompt: false`.
+Keep that **single** `llama-server` running. Stack settings: [`configs/baseline.yaml`](configs/baseline.yaml) (BF16, **16k** `-c`, thinking on, temperature 0.6, top-p 0.95, top-k 20, `cache_prompt: false`). The course handout is [docs/Project_Description_AI624_2026.pdf](docs/Project_Description_AI624_2026.pdf) §2.1.
 
-On the Pi, one short session plus the sweep stays around 10k tokens processed:
+There is **one baseline configuration**; you measure it with **several Pi scenarios** (same weights and client flags each time). Later optimizations change one knob and compare against this stack.
 
-```bash
-./scripts/run_baseline.sh
+| Scenario | PDF / purpose | Pi script entry |
+|----------|----------------|-----------------|
+| **session** | Real tool-calling harness, device metrics | `run_baseline.sh --only session` → `run_harness.sh` |
+| **characterize** | Task 3 prefill/decode at ≥3 lengths | `run_baseline.sh --only characterize` → `characterize_baseline.sh` |
+| **export** | Refresh GitHub Pages data | `run_baseline.sh --only export` → `export_dashboard.sh` |
+| **Held-out exam** | Session success on test split (not Pi timing) | `./scripts/run_host_accuracy.sh` on a **host** |
+
+`long_extra_03_fund_after_dump` once processed about 36k tokens at ~1.4 tok/s (~7 h) on BF16 with a stateless client. Prefer the default short session (`long_extra_04_watchlist`) for Pi timing until FP16 or prompt caching land. Harness defaults to **no** BFCL long dumps (`--long-context` is opt-in).
+
+#### `pi_scenarios` in `baseline.yaml`
+
+Defaults for `./scripts/run_baseline.sh` live under `pi_scenarios`. Set `enabled: false` to skip a step when you run the script with no CLI overrides:
+
+```yaml
+pi_scenarios:
+  session:
+    enabled: true
+    sample_device: true    # wrap in sample_device.sh (power, temp, RSS)
+    split: long_extra
+    task_id: long_extra_04_watchlist
+  characterize:
+    enabled: true
+    sample_device: true
+    lengths: "512,2048,4096"
+  export:
+    enabled: true
 ```
 
-That runs `long_extra_04_watchlist`, then prefill/decode at 512, 2048, and 4096. `long_extra_03_fund_after_dump` processed about 36k tokens at about 1.4 tok/s, roughly 7 hours. Treat sessions above about 10k tokens as too long for this BF16 baseline. FP16, then prompt caching, are the first experiments aimed at that.
+`sample_device: true` archives traces under `results/baseline/history/<timestamp>/`.
 
-On a host, with the same weights, score the full held-out split:
+#### `run_baseline.sh` flags
+
+```bash
+./scripts/run_baseline.sh                              # all scenarios with enabled: true
+./scripts/run_baseline.sh --only characterize          # prefill/decode sweep only
+./scripts/run_baseline.sh --only session               # harness only (YAML task)
+./scripts/run_baseline.sh --only export                # dashboard only
+./scripts/run_baseline.sh --only session --only characterize   # no export
+./scripts/run_baseline.sh --no-session --only characterize     # explicit skips
+./scripts/run_baseline.sh --no-device --only session # harness without power trace
+./scripts/run_baseline.sh --only session --task-id long_extra_04_watchlist
+./scripts/run_baseline.sh --only characterize --lengths 512,2048
+./scripts/run_baseline.sh --config configs/baseline.yaml
+./scripts/run_baseline.sh --help
+```
+
+| Flag | Effect |
+|------|--------|
+| `--only SCENARIO` | Run only `session`, `characterize`, and/or `export` (repeatable) |
+| `--session` / `--no-session` | Force enable or skip session |
+| `--characterize` / `--no-characterize` | Force enable or skip sweep |
+| `--export` / `--no-export` | Force enable or skip dashboard export |
+| `--no-device` | Do not wrap in `sample_device.sh` |
+| `--split`, `--task-id` | Override session task |
+| `--lengths` | Override characterize prompt lengths |
+| `--config` | Alternate baseline YAML |
+
+The script checks `llama-server` health before **session** and **characterize**; **export** needs no server.
+
+#### Typical Pi workflow (separate runs)
+
+```bash
+# Terminal 1 — leave running
+./scripts/start_server.sh
+
+# Terminal 2 — one scenario at a time
+./scripts/run_baseline.sh --only characterize
+./scripts/run_baseline.sh --only session
+./scripts/run_baseline.sh --only export
+```
+
+Logs land under `results/baseline/`. Direct harness or sweep without the baseline driver:
+
+```bash
+./scripts/sample_device.sh -- ./scripts/run_harness.sh --split long_extra --task-id long_extra_04_watchlist
+./scripts/sample_device.sh -- ./scripts/characterize_baseline.sh --lengths 512,2048,4096
+```
+
+#### Host accuracy (same stack, not Pi timing)
 
 ```bash
 ./scripts/run_host_accuracy.sh
 ```
 
-Logs land under `results/baseline/`. Harness defaults to **no** BFCL long dumps (`--long-context` is opt-in).
+#### Long HTTP timeouts (Pi BF16 prefill)
+
+Slow turns must not hit the old **3 h** client cap or llama-server’s default **1 h** socket timeout:
+
+| Layer | Setting | Default |
+|-------|---------|---------|
+| Harness | `client.timeout_s` in `baseline.yaml` | **86400 s** (24 h) |
+| Characterize | same via `A1_COMPLETION_TIMEOUT_S` | **86400 s** |
+| llama-server | `server.read_write_timeout_s` → `--timeout` | **86400 s** |
+
+`run_baseline.sh` exports `A1_CLIENT_TIMEOUT_S` / `A1_COMPLETION_TIMEOUT_S`.  
+`start_server.sh` reads `read_write_timeout_s` from the same YAML.  
+Override per run: `export A1_CLIENT_TIMEOUT_S=172800` or `SERVER_TIMEOUT=172800 ./scripts/start_server.sh`.
+
+**Restart llama-server** after changing server timeout values.
+
+#### Pi 5 fan (throttling)
+
+If the fan spins briefly then stops while the chip stays hot, check:
+
+```bash
+./scripts/pi_cooling_check.sh
+```
+
+When device tree reports `cooling_fan` **disabled**, add the lines in [docs/pi5-active-cooler.snippet](docs/pi5-active-cooler.snippet) under `[pi5]` in `/boot/firmware/config.txt` and **reboot**. Use the **4-pin JST** fan header on the Pi 5, not GPIO-only wiring, for the official active cooler.
 
 ### 7.4 Quantize only after the baseline is characterized
 
@@ -374,11 +470,12 @@ setup.sh                              # submodules, venvs, llama.cpp build
 requirements.txt                      # lean harness deps
 configs/
   tool_subset.json                    # TradingBot + MessageAPI (30 tools)
-  baseline.yaml                       # BF16, thinking on, cache_prompt=false
+  baseline.yaml                       # BF16 stack + pi_scenarios defaults
 src/a1_agent/                         # client, parser, backends, harness
 scripts/
   start_server.sh                     # llama-server on the Pi
-  run_baseline.sh                     # short Pi session + prefill/decode sweep
+  run_baseline.sh                     # Pi baseline scenarios (session / characterize / export)
+  pi_cooling_check.sh                 # Pi 5 fan device-tree / throttling hints
   run_host_accuracy.sh                # full test split, for a host
   sample_device.sh                    # power, temperature, RSS for one command
   export_dashboard.sh                 # results/baseline/history → docs/data

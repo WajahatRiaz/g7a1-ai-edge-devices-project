@@ -3,13 +3,17 @@ name: baseline_bf16_stateless
 model_family: Qwen3
 model_size: "1.7B"
 gguf: models/qwen3-1.7b-bf16.gguf
-# Host-safe default. Raise toward 16384/32768 on the Pi for long dumps.
-context_size: 8192
+# Official baseline (Project_Description_AI624_2026.pdf §2.1): BF16, 16k cache on 8 GB Pi.
+# Do not serve 32768 on this board; long 16k–32k *sessions* use capped filler + later compression.
+context_size: 16384
+context_size_max: 16384
 server:
   host: 127.0.0.1
   port: 8080
   threads: 4      # null => nproc; keep modest on shared 16GB hosts
   jinja: true
+  # llama-server --timeout (default upstream is 3600 s and will kill long prefills).
+  read_write_timeout_s: 86400
 client:
   cache_prompt: false
   # Qwen3 thinking-mode sampling. Non-thinking, if compared later, is
@@ -19,8 +23,8 @@ client:
   top_k: 20
   # Room for the think block and the tool call. 512 was ending the turn early.
   max_tokens: 2048
-  # Pi BF16 + tool schemas can exceed 30m per turn; override with A1_CLIENT_TIMEOUT_S.
-  timeout_s: 10800
+  # Per HTTP completion (harness). Override with A1_CLIENT_TIMEOUT_S.
+  timeout_s: 86400
   schemas_in_system_prompt: true
   # Also pass OpenAI-style tools so llama-server/Qwen3 emits native tool_calls.
   # Schemas remain in the system prompt for the baseline requirement.
@@ -36,6 +40,20 @@ tasks:
   test: data/tasks/test.jsonl
   long_extra: data/tasks/long_extra.jsonl
 metrics_dir: results/baseline
+# Pi baseline measurement scenarios (./scripts/run_baseline.sh). Toggle enabled or
+# override defaults; use CLI --only session|characterize|export to run one step.
+pi_scenarios:
+  session:
+    enabled: true
+    sample_device: true
+    split: long_extra
+    task_id: long_extra_04_watchlist
+  characterize:
+    enabled: true
+    sample_device: true
+    lengths: "512,2048,4096"
+  export:
+    enabled: true
 # Pi timing stays near 10k tokens processed. A stateless BF16 session that
 # re-sends much more than that (about 36k tokens at 1.4 tok/s is ~7 hours)
 # is prohibitively long for the baseline and is what later experiments

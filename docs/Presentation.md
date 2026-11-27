@@ -44,13 +44,14 @@ A **token** is one piece of text. A common word may be one token. In this model 
 |---|---|
 | The model file (BF16, explained in the software section) | about 3.8 GB |
 | Notes kept per token | about 112 KB each |
+| A 16,384-token chat (course baseline) | about 1.75 GB of notes |
 | An 8,192-token chat | about 0.9 GB of notes |
 | A 16,384-token chat | about 1.75 GB of notes |
 | A 32,768-token chat | about 3.5 GB of notes |
 
 The 112 KB figure comes from the shape of this model: 28 layers, 8 note-heads, 128 numbers wide, two bytes each, and both a key and a value. 2 × 28 × 8 × 128 × 2 bytes = 114,688 bytes, which is 112 KiB.
 
-The course handout's official starting length is 16,384 tokens. That fits beside the 3.8 GB file. A 32,768-token chat plus the file does not, once Linux is using memory too. The server that is actually running was started at 8,192 tokens.
+The course PDF baseline is a **16,384-token** cache (fits beside the 3.8 GB file). **32,768** does not fit on 8 GB. `./scripts/start_server.sh` serves **`-c 16384`** to match that baseline.
 
 ```mermaid
 flowchart LR
@@ -119,7 +120,7 @@ That is this command:
 ```bash
 llama-server \
   -m models/qwen3-1.7b-bf16.gguf \
-  -c 8192 --jinja --webui \
+  -c 16384 --jinja --webui \
   -t 2 -tb 4 -np 1 \
   --host 127.0.0.1 --port 8080
 ```
@@ -127,7 +128,7 @@ llama-server \
 | Flag | Meaning |
 |---|---|
 | `-m` | Which model file |
-| `-c 8192` | The longest chat the server will hold, in tokens. This is the **context** |
+| `-c 16384` | The longest chat the server holds — **16k**, the course A1 baseline |
 | `--jinja` | Use Qwen's official chat template, including the scratchpad called thinking |
 | `--webui` | Also serve a browser chat at `http://127.0.0.1:8080/` |
 | `-t 2` | Two cores write new tokens |
@@ -365,7 +366,7 @@ These live in `configs/baseline.yaml`. Later experiments change one row and say 
 | Setting | Value | What it means if you have not seen it |
 |---|---|---|
 | Weights | the BF16 GGUF | The full starting file. A faster 16-bit layout is the first experiment, and it does not replace this file |
-| Context | 8,192 tokens | How long a single chat may grow on the running server |
+| Context | 16,384 tokens | Course baseline cache; how long one chat may grow on the server |
 | Reuse earlier reading | off | Every turn is read from the first word again |
 | Tool descriptions | all 30, in the instructions, and also sent as a tool list | The model can see them, and the server can return a structured call |
 | Thinking | on | The model may write scratch work before the call. Turning it off made it skip a required call |
@@ -386,7 +387,7 @@ sequenceDiagram
   H->>S: The same chat again, with that result stuck on the end
 ```
 
-The Pi script that measures this starting point is `./scripts/run_baseline.sh`. It does two things, aimed at about 10,000 tokens of work altogether:
+The Pi script that measures this starting point is `./scripts/run_baseline.sh` (steps are listed under `pi_scenarios` in `configs/baseline.yaml` and can be run separately with `--only session`, `--only characterize`, or `--only export`). By default it does two things, aimed at about 10,000 tokens of work altogether:
 
 1. The short watchlist task above.
 2. A speed sweep: feed the model a dummy prompt of 512 tokens, then 2,048, then 4,096, and let it write 32 tokens each time. That separates "how long does reading take?" from the complications of a real tool chat.
@@ -509,7 +510,7 @@ Flash attention stays on its default unless a measurement shows the server actua
 ### A way to give the talk
 
 1. Part 1, the board. Name the Pi 5, 8 GB, 4 cores, and that watts and degrees come from the board itself.
-2. The memory picture in Part 1. The model file is 3.8 GB. The notes are 112 KB per token. A 32k chat does not fit. We are serving 8,192.
+2. The memory picture in Part 1. The model file is 3.8 GB. The notes are 112 KB per token. A 32k chat does not fit. We serve the PDF baseline at 16,384 tokens.
 3. Part 2, the programs. Two terminals: start the server, then run the baseline. Point at the program table only if someone asks which file does what.
 4. Part 3, one page. One model, tools whose replies make the chat longer, and the whole chat is reread every time.
 5. The request diagram. Walk one turn: harness, server, fake app, and the power log beside it.
