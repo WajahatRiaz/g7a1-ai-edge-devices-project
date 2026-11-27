@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fold every dated run into docs/data/dashboard.json for GitHub Pages.
 
-Reads results/baseline/history/<timestamp>/ and keeps runs already published
-in the dashboard file, so later exports still show earlier dates.
+Reads results/baseline/history/<timestamp>/ only. Removing a history folder
+and re-exporting drops that run from docs/data/dashboard.json.
 """
 
 from __future__ import annotations
@@ -130,15 +130,6 @@ def load_history_run(directory: Path, sample_device) -> dict | None:
 
 def load_runs() -> list[dict]:
     found: dict[str, dict] = {}
-    if OUT.is_file():
-        try:
-            previous = json.loads(OUT.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            previous = {}
-        for run in previous.get("runs") or []:
-            run_id = run.get("id")
-            if run_id:
-                found[run_id] = run
     sample_device = load_sample_device()
     history = RESULTS / "history"
     if history.is_dir():
