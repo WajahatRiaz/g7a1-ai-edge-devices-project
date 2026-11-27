@@ -177,7 +177,7 @@ print(
     "true" if sess.get("sample_device", True) else "false",
     sess.get("split", "test"),
     limit if limit is not None else "",
-    task_id or "",
+    task_id if task_id else "none",
     "true" if char.get("enabled", True) else "false",
     "true" if char.get("sample_device", True) else "false",
     char.get("lengths", "512,2048,4096"),
@@ -203,6 +203,7 @@ fi
 SESSION_SPLIT="${SPLIT_OVERRIDE:-${SESSION_SPLIT}}"
 SESSION_LIMIT="${LIMIT_OVERRIDE:-${SESSION_LIMIT}}"
 SESSION_TASK="${TASK_OVERRIDE:-${SESSION_TASK}}"
+[[ "${SESSION_TASK}" == "none" ]] && SESSION_TASK=""
 CHAR_LENGTHS="${LENGTHS_OVERRIDE:-${CHAR_LENGTHS}}"
 
 HOST="${HOST:-127.0.0.1}"

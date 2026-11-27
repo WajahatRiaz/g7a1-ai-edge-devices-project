@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "updated_at": "2026-11-27T08:20:47.638568+00:00",
+  "updated_at": "2026-11-27T08:50:12.272369+00:00",
   "project": {
     "name": "Long Context Tool-Calling Agent",
     "course": "AI624 \u00b7 AI on Edge Devices \u00b7 Fall 2026",
@@ -21,6 +21,12 @@
     "schemas_in_system_prompt": true,
     "llama_cpp_commit": "d1eb0debaddc9f9246ee884653ee3a7764f60b77"
   },
-  "server": null,
+  "server": {
+    "model_file": "qwen3-1.7b-bf16.gguf",
+    "model_ftype": "BF16",
+    "n_ctx": 16384,
+    "total_slots": 1,
+    "build_info": "b1-d1eb0de"
+  },
   "runs": []
 }
